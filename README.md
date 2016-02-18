@@ -1,8 +1,6 @@
 # TwoPlayerMod [.NET]
 GTA V Script Mod which spawns a second player that can be controlled with any USB Gamepad.
-
 ============================
-
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/BenjaminFaal/twoplayermod?branch=master&svg=true)](https://ci.appveyor.com/project/BenjaminFaal/twoplayermod)
 
 This is a ScriptHookVDotNet plugin for Grand Theft Auto V, which will enable you to add a secondary player and control it with any USB gamepad.
@@ -24,4 +22,4 @@ Any contributions to the project are welcomed, it's recommended to use GitHub [p
 
 ## License
 
-All the source code is licensed under the conditions of the [zlib license](LICENSE.txt).
+All the source code is licensed under the conditions of this license: (LICENSE.txt).

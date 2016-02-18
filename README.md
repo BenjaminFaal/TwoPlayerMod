@@ -1,4 +1,6 @@
 # TwoPlayerMod [.NET]
+[![Build status](https://ci.appveyor.com/api/projects/status/t2ilmjndrk9vu9ow?svg=true)](https://ci.appveyor.com/project/BenjaminFaal/twoplayermod)
+
 This is a ScriptHookVDotNet plugin for Grand Theft Auto V, which will enable you to add a secondary player and control it with any USB gamepad.
 
 The issues page should be primarily used for bug reports and enhancement ideas.

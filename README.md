@@ -10,6 +10,7 @@ The issues page should be primarily used for bug reports and enhancement ideas.
 
 * [C++ ScriptHook by Alexander Blade](http://www.dev-c.com/gtav/scripthookv/)
 * [Community Script Hook V .NET by crosire](https://github.com/crosire)
+* [SharpDX by http://sharpdx.org](http://sharpdx.org)
 
 ## Downloads
 

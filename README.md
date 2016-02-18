@@ -21,4 +21,4 @@ Any contributions to the project are welcomed, it's recommended to use GitHub [p
 
 ## License
 
-All the source code is licensed under the conditions of this license: (LICENSE.txt).
+All the source code is licensed under the conditions of this license: (https://github.com/BenjaminFaal/TwoPlayerMod/blob/master/LICENSE.txt).

@@ -12,7 +12,7 @@ namespace Benjamin94
         /// </summary>
         public class InputManager
         {
-            private Dictionary<int, DeviceButton> config;
+            private DeviceButton[] config;
 
             /// <summary>
             /// The Joystick which will be managed by this InputManager
@@ -38,7 +38,7 @@ namespace Benjamin94
             public InputManager(Joystick stick)
             {
                 Stick = stick;
-                config = new Dictionary<int, DeviceButton>();
+                config = new DeviceButton[GetState().Buttons.Length];
             }
 
             /// <summary>
@@ -71,7 +71,7 @@ namespace Benjamin94
             public static bool IsDefault(Joystick stick, string file, string section)
             {
                 ScriptSettings settings = ScriptSettings.Load(file);
-                return IsConfigured(stick, file) && settings.GetValue(section, "Controller", "").Equals(stick.Information.ProductGuid.ToString());
+                return IsConfigured(stick, file) && settings.GetValue(section, TwoPlayerMod.ControllerKey, "").Equals(stick.Information.ProductGuid.ToString());
             }
 
             /// <summary>
@@ -112,14 +112,14 @@ namespace Benjamin94
                 try
                 {
                     ScriptSettings data = ScriptSettings.Load(file);
-                    manager.config.Clear();
+                    Array.Clear(manager.config, 0, manager.config.Length);
                     foreach (DeviceButton btn in Enum.GetValues(typeof(DeviceButton)))
                     {
                         int btnIndex = data.GetValue(name, btn.ToString(), -1);
 
                         try
                         {
-                            manager.config.Add(btnIndex, btn);
+                            manager.config[btnIndex] = btn;
                         }
                         catch (Exception)
                         {
@@ -152,42 +152,29 @@ namespace Benjamin94
 
 
             /// <summary>
-            /// To determine if a Button is pressed at this moment or not
+            /// To determine if a DeviceButton is pressed at this moment or not
             /// </summary>
-            /// <param name="btn"></param>
-            /// <returns>true or false whether the Button is pressed</returns>
+            /// <param name="btn">The DeviceButton to check</param>
+            /// <returns>true or false whether the DeviceButton is pressed</returns>
             public bool IsPressed(DeviceButton btn)
-            {
-                return GetPressedButtons().Contains(btn);
-            }
-
-
-            /// <summary>
-            /// Method to get all pressed Buttons
-            /// </summary>
-            /// <returns>A list of Button enums which are pressed at the moment</returns>
-            public List<DeviceButton> GetPressedButtons()
             {
                 JoystickState state = GetState();
 
                 if (state == null)
                 {
-                    return new List<DeviceButton>();
+                    return false;
                 }
 
                 bool[] buttons = state.Buttons;
-                List<DeviceButton> pressed = new List<DeviceButton>();
                 for (int i = 0; i < buttons.Length; i++)
                 {
                     int button = i + 1;
-
-                    if (buttons[i])
+                    if (buttons[i] && btn == config[i+1])
                     {
-                        DeviceButton btn = config[button];
-                        pressed.Add(btn);
+                        return true;
                     }
                 }
-                return pressed;
+                return false;
             }
 
             /// <summary>
@@ -315,7 +302,6 @@ namespace Benjamin94
             public void Release()
             {
                 stick.Unacquire();
-                config.Clear();
             }
         }
     }

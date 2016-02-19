@@ -9,8 +9,16 @@ using System.Collections.Generic;
 using Benjamin94.Input;
 using Benjamin94;
 
+/// <summary>
+/// The main Script, this will handle all logic
+/// </summary>
 public class TwoPlayerMod : Script
 {
+    // for ini keys
+    public const string ScriptName = "TwoPlayerMod";
+    private const string ToggleKeyKey = "ToggleMenuKey";
+    public const string ControllerKey = "Controller";
+
     // Players
     private Player player;
     private Ped player1;
@@ -22,7 +30,6 @@ public class TwoPlayerMod : Script
 
     // Settings
     private Keys toggleMenuKey = Keys.F11;
-    private readonly string ToggleKeyKey = "ToggleMenuKey";
 
     // Controls
     private InputManager input;
@@ -107,21 +114,23 @@ public class TwoPlayerMod : Script
             controllersMenu.AddItem(stickItem);
             stickItem.Activated += (s, i) =>
             {
-                InputManager input = new InputManager(stick);
-
-                ScriptSettings data = ScriptSettings.Load(GetIniFile());
-                string name = stick.Information.ProductGuid.ToString();
-                List<int> btns = new List<int>();
-
-                foreach (DeviceButton btn in Enum.GetValues(typeof(DeviceButton)))
+                ControllerWizard wizard = new ControllerWizard(stick);
+                bool succes = wizard.StartConfiguration(GetIniFile());
+                if (succes)
                 {
-                    ConfigureButton(btn, input, data, name, btns);
+                    UI.Notify("Controller successfully configured, you can now start playing.");
+
+
+                    // if enabled the mod already then reload the InputManager so it corresponds to the new configuration
+                    if (Enabled())
+                    {
+                        input = InputManager.LoadConfig(stick, GetIniFile());
+                    }
                 }
-
-                data.SetValue(Name, "Controller", name);
-
-                data.Save();
-                UI.Notify("Controller successfully configured, you can now play.");
+                else
+                {
+                    UI.Notify("Controller configuration canceled, please configure your controller before playing.");
+                }
                 controllersMenu.GoBack();
             };
         }
@@ -157,17 +166,16 @@ public class TwoPlayerMod : Script
         int button = input.GetPressedButton();
 
         // check if the configuration contains no mapping already
-        //if (btns.Contains(button))
-        //{
-        //    UI.Notify("Button already in use, please choose another button!");
-        //    ConfigureButton(btn, input, settings, guid, btns);
-        //    Wait(250);
-        //}
-        //else
-        //   {
-        settings.SetValue(guid, btn.ToString(), button);
-        btns.Add(button);
-        //   }
+        if (btns.Contains(button))
+        {
+            UI.Notify("Button already in use, please choose another button!");
+            ConfigureButton(btn, input, settings, guid, btns);
+        }
+        else
+        {
+            settings.SetValue(guid, btn.ToString(), button);
+            btns.Add(button);
+        }
         Wait(250);
     }
 
@@ -351,6 +359,7 @@ public class TwoPlayerMod : Script
                 UpdateFoot();
             }
 
+            // for player2 entering / leaving a vehicle
             if (input.IsPressed(DeviceButton.Y))
             {
                 if (player2.IsInVehicle())
@@ -383,6 +392,7 @@ public class TwoPlayerMod : Script
                 }
             }
 
+            // for letting player get in a vehicle
             if (player1.IsOnFoot && (Game.IsKeyPressed(Keys.G) || Game.IsControlJustReleased(0, GTA.Control.VehicleExit)))
             {
                 Vehicle v = player2.CurrentVehicle;
@@ -401,7 +411,11 @@ public class TwoPlayerMod : Script
                     if (v != null)
                     {
                         Ped driver = v.GetPedOnSeat(VehicleSeat.Driver);
-                        if (driver != player2)
+                        if (driver == null)
+                        {
+                            player1.Task.EnterVehicle(v, VehicleSeat.Driver);
+                        }
+                        else if (driver != player2)
                         {
                             driver.Delete();
                         }

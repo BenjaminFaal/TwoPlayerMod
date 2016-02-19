@@ -5,6 +5,11 @@ This is a ScriptHookVDotNet plugin for Grand Theft Auto V, which will enable you
 
 The issues page should be primarily used for bug reports and enhancement ideas.
 
+## Roadmap / todo
+* Add support for XInput / xBox controllers
+* Fully implement player 2 functions
+* ...
+
 ## Requirements
 
 * [C++ ScriptHook by Alexander Blade](http://www.dev-c.com/gtav/scripthookv/)

@@ -324,7 +324,6 @@ public class TwoPlayerMod : Script
     {
         if (input != null)
         {
-         //   input.Release();
             input = null;
         }
         if (player2 != null)
@@ -361,13 +360,6 @@ public class TwoPlayerMod : Script
 
     private void TwoPlayerMod_Tick(object sender, EventArgs e)
     {
-        if (input != null)
-        {
-          //  new UIText("" + input.GetState(), new System.Drawing.Point(100, 100), 1).Draw();
-
-           UI.ShowSubtitle("leftstick: " + input.GetDirection(DeviceButton.LeftStick) + " rightstick: " + input.GetDirection(DeviceButton.RightStick) );
-        }
-
         menuPool.ProcessMenus();
         if (Enabled())
         {

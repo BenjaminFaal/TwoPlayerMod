@@ -22,7 +22,7 @@ namespace Benjamin94.Input
         /// <returns></returns>
         public bool StartConfiguration(string iniFile)
         {
-            InputManager input = new InputManager(stick);
+            DirectInputManager input = new DirectInputManager(stick);
 
             ScriptSettings data = ScriptSettings.Load(iniFile);
             string guid = stick.Information.ProductGuid.ToString();
@@ -45,7 +45,7 @@ namespace Benjamin94.Input
         /// <param name="data">The ScriptSettings object which it needs to be saved too</param>
         /// <param name="input">InputManager object to handle input</param>
         /// <param name="guid">The GUID of the controller</param>
-        private void Configure(DeviceButton btn, ScriptSettings data, InputManager input, string guid)
+        private void Configure(DeviceButton btn, ScriptSettings data, DirectInputManager input, string guid)
         {
             while (input.GetPressedButton() == -1)
             {

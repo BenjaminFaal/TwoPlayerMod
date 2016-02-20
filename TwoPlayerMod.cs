@@ -8,6 +8,7 @@ using System.Windows.Forms;
 using System.Collections.Generic;
 using Benjamin94.Input;
 using Benjamin94;
+using SharpDX.XInput;
 
 /// <summary>
 /// The main Script, this will handle all logic
@@ -95,16 +96,16 @@ public class TwoPlayerMod : Script
         toggleItem.Activated += ToggleMod_Activated;
         menu.AddItem(toggleItem);
 
-        bool controllersAvailable = InputManager.GetDevices().Count > 0;
+        bool controllersAvailable = DirectInputManager.GetDevices().Count > 0 || XInputManager.GetDevices().Count > 0;
 
         UIMenu controllersMenu = menuPool.AddSubMenu(menu, controllersAvailable ? "Controllers" : "No controllers found, please connect one");
         menu.MenuItems[1].Description = "Configure controllers, yellow star means configured successfully and default controller.";
 
-        foreach (Joystick stick in InputManager.GetDevices())
+        foreach (Joystick stick in DirectInputManager.GetDevices())
         {
             UIMenuItem stickItem = new UIMenuItem(stick.Information.ProductName, "Configure " + stick.Information.ProductName);
 
-            bool def = InputManager.IsDefault(stick, GetIniFile(), Name);
+            bool def = DirectInputManager.IsDefault(stick, GetIniFile(), Name);
 
             if (def)
             {
@@ -120,11 +121,10 @@ public class TwoPlayerMod : Script
                 {
                     UI.Notify("Controller successfully configured, you can now start playing.");
 
-
-                    // if enabled the mod already then reload the InputManager so it corresponds to the new configuration
+                    // if enabled the mod already then reload the InputManager so it is up to date with the new configuration
                     if (Enabled())
                     {
-                        input = InputManager.LoadConfig(stick, GetIniFile());
+                        input = DirectInputManager.LoadConfig(stick, GetIniFile());
                     }
                 }
                 else
@@ -134,7 +134,6 @@ public class TwoPlayerMod : Script
                 controllersMenu.GoBack();
             };
         }
-
         menu.RefreshIndex();
     }
 
@@ -155,7 +154,7 @@ public class TwoPlayerMod : Script
     /// <param name="settings">The ScriptSettings object where the configuration needs to be saved</param>
     /// <param name="guid">The guid of the Joystick</param>
     /// <param name="btns">A List with already pressed buttons so that no double mappings can be made</param>
-    private void ConfigureButton(DeviceButton btn, InputManager input, ScriptSettings settings, string guid, List<int> btns)
+    private void ConfigureButton(DeviceButton btn, DirectInputManager input, ScriptSettings settings, string guid, List<int> btns)
     {
         while (input.GetPressedButton() == -1)
         {
@@ -220,6 +219,11 @@ public class TwoPlayerMod : Script
         player2.IsInvincible = true;
         player2.DropsWeaponsOnDeath = false;
 
+        // dont let the player2 ped decide what to do when there is combat etc.
+        Function.Call(Hash.SET_BLOCKING_OF_NON_TEMPORARY_EVENTS, player2, true);
+        Function.Call(Hash.SET_PED_FLEE_ATTRIBUTES, player2, 0, 0);
+        Function.Call(Hash.SET_PED_COMBAT_ATTRIBUTES, player2, 46, true);
+
         // TODO: make player2 able to aim and shoot
         //foreach (WeaponHash w in Enum.GetValues(typeof(WeaponHash)))
         //{
@@ -254,28 +258,38 @@ public class TwoPlayerMod : Script
     /// </summary>
     private void SetupController()
     {
-        foreach (Joystick stick in InputManager.GetDevices())
+        if (XInputManager.GetDevices().Count > 0)
         {
-            try
+            foreach (Controller ctrl in XInputManager.GetDevices())
             {
-                if (InputManager.IsConfigured(stick, GetIniFile()))
-                {
-                    if (InputManager.IsDefault(stick, GetIniFile(), Name))
-                    {
-                        input = InputManager.LoadConfig(stick, GetIniFile());
-                        UI.Notify("Default controller configuration loaded.");
-                    }
-                }
-                else
-                {
-                    throw new Exception("No valid controller configuration found, please configure one from the menu.");
-                }
-            }
-            catch (Exception)
-            {
-                throw;
+                input = new XInputManager(ctrl);
             }
         }
+        else
+        {
+            foreach (Joystick stick in DirectInputManager.GetDevices())
+            {
+                try
+                {
+                    if (DirectInputManager.IsConfigured(stick, GetIniFile()))
+                    {
+                        if (DirectInputManager.IsDefault(stick, GetIniFile(), Name))
+                        {
+                            input = DirectInputManager.LoadConfig(stick, GetIniFile());
+                        }
+                    }
+                    else
+                    {
+                        throw new Exception("No valid controller configuration found, please configure one from the menu.");
+                    }
+                }
+                catch (Exception)
+                {
+                    throw;
+                }
+            }
+        }
+        UI.Notify("Using controller: " + input.DeviceName);
     }
 
     /// <summary>
@@ -310,7 +324,7 @@ public class TwoPlayerMod : Script
     {
         if (input != null)
         {
-            input.Release();
+         //   input.Release();
             input = null;
         }
         if (player2 != null)
@@ -338,8 +352,22 @@ public class TwoPlayerMod : Script
         return midPoint;
     }
 
+
+
+    /// <summary>
+    /// This variable will hold the last VehicleAction in order to not spam the Native calls
+    /// </summary>
+    private VehicleAction LastVehicleAction = VehicleAction.Wait;
+
     private void TwoPlayerMod_Tick(object sender, EventArgs e)
     {
+        if (input != null)
+        {
+          //  new UIText("" + input.GetState(), new System.Drawing.Point(100, 100), 1).Draw();
+
+           UI.ShowSubtitle("leftstick: " + input.GetDirection(DeviceButton.LeftStick) + " rightstick: " + input.GetDirection(DeviceButton.RightStick) );
+        }
+
         menuPool.ProcessMenus();
         if (Enabled())
         {
@@ -350,8 +378,11 @@ public class TwoPlayerMod : Script
                 if (v.GetPedOnSeat(VehicleSeat.Driver) == player2)
                 {
                     VehicleAction action = GetVehicleAction();
-
-                    PerformVehicleAction(player2, v, action);
+                    if (action != LastVehicleAction)
+                    {
+                        PerformVehicleAction(player2, v, action);
+                        LastVehicleAction = action;
+                    }
                 }
             }
             else
@@ -547,7 +578,7 @@ public class TwoPlayerMod : Script
 
             if (newPos != Vector3.Zero)
             {
-                if (input.IsPressed(DeviceButton.A))
+                if (input.IsPressed(DeviceButton.RightTrigger))
                 {
                     player2.Task.RunTo(newPos, true, 1);
                 }

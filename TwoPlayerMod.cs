@@ -9,6 +9,8 @@ using System.Collections.Generic;
 using Benjamin94.Input;
 using Benjamin94;
 using SharpDX.XInput;
+using FakeXboxController;
+using System.Threading;
 
 /// <summary>
 /// The main Script, this will handle all logic
@@ -35,6 +37,9 @@ public class TwoPlayerMod : Script
     // Controls
     private InputManager input;
 
+    // fake xbox controller to disable gta v from controlling player 1
+    private ScpDevice fakeDevice;
+
     public TwoPlayerMod()
     {
         LoadSettings();
@@ -42,6 +47,17 @@ public class TwoPlayerMod : Script
 
         KeyDown += TwoPlayerMod_KeyDown;
         Tick += TwoPlayerMod_Tick;
+    }
+
+    // fake xbox controller to disable gta v from controlling player 1
+    private void SetupFakeDevice()
+    {
+        if (fakeDevice == null)
+        {
+            fakeDevice = new ScpDevice("{F679F562-3164-42CE-A4DB-E7DDBE723909}");
+            fakeDevice.Start();
+            UI.Notify("If the controller is controlling both characters, please reconnect it.");
+        }
     }
 
     /// <summary>
@@ -260,6 +276,8 @@ public class TwoPlayerMod : Script
     {
         if (XInputManager.GetDevices().Count > 0)
         {
+            SetupFakeDevice();
+
             foreach (Controller ctrl in XInputManager.GetDevices())
             {
                 input = new XInputManager(ctrl);
@@ -322,8 +340,15 @@ public class TwoPlayerMod : Script
     /// </summary>
     private void Clean()
     {
+        if (fakeDevice != null)
+        {
+            fakeDevice.Stop();
+            fakeDevice = null;
+        }
+
         if (input != null)
         {
+            input.Cleanup();
             input = null;
         }
         if (player2 != null)
@@ -360,6 +385,11 @@ public class TwoPlayerMod : Script
 
     private void TwoPlayerMod_Tick(object sender, EventArgs e)
     {
+        if (input != null)
+        {
+            UI.ShowSubtitle("normal: " + Game.GetControlNormal(1, GTA.Control.VehicleAccelerate) + "state: " + input.GetState());
+        }
+
         menuPool.ProcessMenus();
         if (Enabled())
         {
@@ -485,7 +515,7 @@ public class TwoPlayerMod : Script
             }
             else
             {
-                return VehicleAction.RevEngineFast;
+                return VehicleAction.GoForwardStraight;
             }
         }
 
@@ -535,55 +565,18 @@ public class TwoPlayerMod : Script
     /// </summary>
     private void UpdateFoot()
     {
-        Direction dir = input.GetDirection(DeviceButton.LeftStick);
-        if (dir != Direction.None)
+        Vector2 vector = input.GetState().LeftThumbStick;
+        Vector3 newPos = new Vector3(vector.X, vector.Y, 0);
+        if (newPos != Vector3.Zero)
         {
-            Vector3 newPos = Vector3.Zero;
-
-            switch (dir)
-            {
-                case Direction.Forward:
-                    newPos = player2.GetOffsetInWorldCoords(new Vector3(0, 1, 0));
-                    break;
-                case Direction.Backward:
-                    newPos = player2.GetOffsetInWorldCoords(new Vector3(0, -1, 0));
-                    break;
-                case Direction.Left:
-                    newPos = player2.GetOffsetInWorldCoords(new Vector3(-1, 0, 0));
-                    break;
-                case Direction.Right:
-                    newPos = player2.GetOffsetInWorldCoords(new Vector3(1, 0, 0));
-                    break;
-                case Direction.ForwardLeft:
-                    newPos = player2.GetOffsetInWorldCoords(new Vector3(1, 1, 0));
-                    break;
-                case Direction.ForwardRight:
-                    newPos = player2.GetOffsetInWorldCoords(new Vector3(-1, 1, 0));
-                    break;
-                case Direction.BackwardLeft:
-                    newPos = player2.GetOffsetInWorldCoords(new Vector3(-1, -1, 0));
-                    break;
-                case Direction.BackwardRight:
-                    newPos = player2.GetOffsetInWorldCoords(new Vector3(1, -1, 0));
-                    break;
-            }
-
-            if (newPos != Vector3.Zero)
-            {
-                if (input.IsPressed(DeviceButton.RightTrigger))
-                {
-                    player2.Task.RunTo(newPos, true, 1);
-                }
-                else
-                {
-                    player2.Task.GoTo(newPos, true, 1);
-                }
-            }
+            newPos = player2.GetOffsetInWorldCoords(newPos);
+            player2.Task.GoTo(newPos, true, 1);
         }
 
-        if (input.IsPressed(DeviceButton.A) && !player2.IsJumping)
+        if (input.IsPressed(DeviceButton.X))
         {
             player2.Task.Jump();
+            Wait(750);
         }
     }
 }

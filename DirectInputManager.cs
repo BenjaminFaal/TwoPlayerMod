@@ -267,6 +267,13 @@ namespace Benjamin94
                 }
                 return Direction.None;
             }
+
+            public override void Cleanup()
+            {
+                device.Unacquire();
+                device = null;
+                config = null;
+            }
         }
     }
 }

@@ -72,6 +72,12 @@ namespace Benjamin94
             /// <param name="yCenter">The start value of Y</param>
             /// <returns>The Direction corresponding with the X and Y value</returns>
             protected abstract Direction GetDirection(float X, float Y, float xCenter, float yCenter);
+
+
+            /// <summary>
+            /// Call this method to cleanup this InputManager
+            /// </summary>
+            public abstract void Cleanup();
         }
     }
 }

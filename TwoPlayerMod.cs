@@ -385,11 +385,6 @@ public class TwoPlayerMod : Script
 
     private void TwoPlayerMod_Tick(object sender, EventArgs e)
     {
-        if (input != null)
-        {
-            UI.ShowSubtitle("normal: " + Game.GetControlNormal(1, GTA.Control.VehicleAccelerate) + "state: " + input.GetState());
-        }
-
         menuPool.ProcessMenus();
         if (Enabled())
         {

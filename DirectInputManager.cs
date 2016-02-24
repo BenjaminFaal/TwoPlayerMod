@@ -62,7 +62,14 @@ namespace Benjamin94
                 foreach (DeviceInstance dev in directInput.GetDevices(DeviceClass.GameControl, DeviceEnumerationFlags.AttachedOnly))
                 {
                     var joystick = new Joystick(directInput, dev.InstanceGuid);
-                    sticks.Add(joystick);
+
+                    // dont include Xbox controllers
+                    string name = joystick.Information.ProductName.ToLower();
+                    if (!name.Contains("xbox") && !name.Contains("360"))
+                    {
+                        sticks.Add(joystick);
+                    }
+
                 }
                 return sticks;
             }
@@ -190,6 +197,17 @@ namespace Benjamin94
                 return -1;
             }
 
+            /// <summary>
+            /// Removes deadzone from the input X and Y
+            /// </summary>
+            /// <param name="x">input X</param>
+            /// <param name="y">input Y</param>
+            /// <returns></returns>
+            private static Vector2 NormalizeThumbStick(float x, float y)
+            {
+                return new Vector2((x - JOY_32767) / JOY_32767, -(y - JOY_32767) / JOY_32767);
+            }
+
             public override DeviceState GetState()
             {
                 try
@@ -203,17 +221,14 @@ namespace Benjamin94
 
                     for (int i = 0; i < buttons.Length; i++)
                     {
-                        int button = i + 1;
-
                         if (buttons[i])
                         {
                             devState.Buttons.Add(config[i + 1]);
                         }
                     }
 
-                    devState.LeftThumbStick = new Vector2(state.X, state.Y);
-                    devState.RightThumbStick = new Vector2(state.Z, state.RotationZ);
-
+                    devState.LeftThumbStick = NormalizeThumbStick(state.X, state.Y);
+                    devState.RightThumbStick = NormalizeThumbStick(state.Z, state.RotationZ);
                     return devState;
                 }
                 catch (Exception)
@@ -231,15 +246,19 @@ namespace Benjamin94
                 return null;
             }
 
+            private const int JOY_32767 = 32767;
+            private const int JOY_0 = 0;
+            private const int JOY_65535 = 65535;
+
             protected override Direction GetDirection(float X, float Y, float xCenter, float yCenter)
             {
                 if (X < xCenter && Y > yCenter)
                 {
-                    return Direction.BackwardLeft;
+                    return Direction.ForwardLeft;
                 }
                 if (X > xCenter && Y > yCenter)
                 {
-                    return Direction.BackwardRight;
+                    return Direction.ForwardRight;
                 }
                 if (X < xCenter && Y == yCenter)
                 {
@@ -247,19 +266,19 @@ namespace Benjamin94
                 }
                 if (X == xCenter && Y > yCenter)
                 {
-                    return Direction.Backward;
+                    return Direction.Forward;
                 }
                 if (X == xCenter && Y < yCenter)
                 {
-                    return Direction.Forward;
+                    return Direction.Backward;
                 }
                 if (X < xCenter && Y < yCenter)
                 {
-                    return Direction.ForwardLeft;
+                    return Direction.BackwardLeft;
                 }
                 if (X > xCenter && Y < yCenter)
                 {
-                    return Direction.ForwardRight;
+                    return Direction.BackwardRight;
                 }
                 if (X > xCenter && Y == yCenter)
                 {

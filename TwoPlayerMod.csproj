@@ -29,7 +29,15 @@
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject>
+    </StartupObject>
+  </PropertyGroup>
+  <PropertyGroup>
+    <RunPostBuildEvent>OnBuildSuccess</RunPostBuildEvent>
+  </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
     <Reference Include="NativeUI, Version=1.0.0.0, Culture=neutral, processorArchitecture=AMD64">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>Dependencies\NativeUI.dll</HintPath>
@@ -51,10 +59,7 @@
       <HintPath>Dependencies\SharpDX.XInput.dll</HintPath>
     </Reference>
     <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
-    <Reference Include="Microsoft.CSharp" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ControllerWizard.cs" />
@@ -62,6 +67,7 @@
     <Compile Include="DeviceState.cs" />
     <Compile Include="DirectInputManager.cs" />
     <Compile Include="Direction.cs" />
+    <Compile Include="ScpDevice.cs" />
     <Compile Include="InputManager.cs" />
     <Compile Include="TwoPlayerMod.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -83,8 +89,9 @@ C:\Users\Benjamin\Desktop\gtav.ahk</PostBuildEvent>
   <PropertyGroup>
   </PropertyGroup>
   <PropertyGroup>
-    <PostBuildEvent>
-    </PostBuildEvent>
+    <PostBuildEvent>COPY "$(TargetDir)$(TargetFileName)" "C:\Program Files (x86)\Steam\steamapps\common\Grand Theft Auto V\scripts"
+COPY "$(TargetDir)$(TargetName)" "C:\Program Files (x86)\Steam\steamapps\common\Grand Theft Auto V\scripts"
+C:\Users\Benjamin\Desktop\gtav.ahk</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

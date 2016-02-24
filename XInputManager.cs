@@ -2,8 +2,6 @@
 using System;
 using System.Collections.Generic;
 using GTA.Math;
-using GTA;
-using FakeXboxController;
 
 namespace Benjamin94
 {

@@ -19,8 +19,10 @@ public class TwoPlayerMod : Script
 {
     // for ini keys
     public const string ScriptName = "TwoPlayerMod";
-    private const string ToggleKeyKey = "ToggleMenuKey";
+    private const string ToggleMenuKey = "ToggleMenuKey";
+    private const string CharacterHashKey = "CharacterHash";
     public const string ControllerKey = "Controller";
+    public const string CustomCameraKey = "CustomCamera";
 
     // Players
     private Player player;
@@ -33,12 +35,17 @@ public class TwoPlayerMod : Script
 
     // Settings
     private Keys toggleMenuKey = Keys.F11;
+    private PedHash characterHash = PedHash.Trevor;
 
     // Controls
     private InputManager input;
 
     // fake xbox controller to disable gta v from controlling player 1
     private ScpDevice fakeDevice;
+
+    // camera
+    private bool customCamera = false;
+    private Camera camera;
 
     public TwoPlayerMod()
     {
@@ -65,30 +72,45 @@ public class TwoPlayerMod : Script
     /// </summary>
     private void LoadSettings()
     {
+        ScriptSettings settings = ScriptSettings.Load(GetIniFile());
         try
         {
-            ScriptSettings settings = ScriptSettings.Load(GetIniFile());
-            toggleMenuKey = (Keys)new KeysConverter().ConvertFromString(settings.GetValue(Name, ToggleKeyKey, Keys.F11.ToString()));
+            toggleMenuKey = (Keys)new KeysConverter().ConvertFromString(settings.GetValue(Name, ToggleMenuKey, Keys.F11.ToString()));
         }
         catch (Exception)
         {
             toggleMenuKey = Keys.F11;
-            UI.Notify("Failed to load config, default " + ToggleKeyKey + " is F11");
+            UI.Notify("Failed to read '" + ToggleMenuKey + "', reverting to default " + ToggleMenuKey + " F11");
 
-            WriteDefaultConfig();
+            settings.SetValue(Name, ToggleMenuKey, Keys.F11.ToString());
+            settings.Save();
+        }
+        try
+        {
+            characterHash = (PedHash)Enum.Parse(typeof(PedHash), settings.GetValue(Name, CharacterHashKey, "Trevor"));
+        }
+        catch (Exception)
+        {
+            characterHash = PedHash.Trevor;
+            UI.Notify("Failed to read '" + CharacterHashKey + "', reverting to default " + CharacterHashKey + " Trevor");
+
+            settings.SetValue(Name, CharacterHashKey, PedHash.Trevor.ToString());
+            settings.Save();
+        }
+
+        try
+        {
+            customCamera = bool.Parse(settings.GetValue(Name, CustomCameraKey, "False"));
+        }
+        catch (Exception)
+        {
+            customCamera = false;
+            UI.Notify("Failed to read '" + CustomCameraKey + "', reverting to default " + CustomCameraKey + " False");
+
+            settings.SetValue(Name, CustomCameraKey, "False");
+            settings.Save();
         }
     }
-
-    /// <summary>
-    /// Writes default config file
-    /// </summary>
-    private void WriteDefaultConfig()
-    {
-        ScriptSettings settings = ScriptSettings.Load(GetIniFile());
-        settings.SetValue(Name, ToggleKeyKey, Keys.F11.ToString());
-        settings.Save();
-    }
-
 
     /// <summary>
     /// Determines if the mod is enabled or disabled
@@ -111,6 +133,50 @@ public class TwoPlayerMod : Script
         UIMenuItem toggleItem = new UIMenuItem("Toggle mod", "Toggle Two Player mode");
         toggleItem.Activated += ToggleMod_Activated;
         menu.AddItem(toggleItem);
+
+        List<dynamic> hashes = new List<dynamic>();
+
+        foreach (PedHash pedHash in Enum.GetValues(typeof(PedHash)))
+        {
+            hashes.Add(pedHash.ToString());
+        }
+
+        hashes.Sort();
+
+        int index = 0;
+
+        foreach (string item in hashes)
+        {
+            if (item.Equals(characterHash.ToString()))
+            {
+                index = hashes.IndexOf(item);
+                break;
+            }
+        }
+
+        UIMenuListItem characterItem = new UIMenuListItem("Character", hashes, index, "Select a character for player 2.");
+
+        characterItem.OnListChanged += (s, i) =>
+        {
+            PedHash selectedHash = Enum.Parse(typeof(PedHash), s.IndexToItem(s.Index));
+            characterHash = selectedHash;
+
+            ScriptSettings settings = ScriptSettings.Load(GetIniFile());
+            settings.SetValue(Name, CharacterHashKey, selectedHash.ToString());
+            settings.Save();
+        };
+
+        menu.AddItem(characterItem);
+
+        UIMenuCheckboxItem cameraItem = new UIMenuCheckboxItem("Toggle custom camera", customCamera, "This enables/disables the custom camera");
+        cameraItem.CheckboxEvent += (s, i) =>
+        {
+            customCamera = !customCamera;
+            ScriptSettings settings = ScriptSettings.Load(GetIniFile());
+            settings.SetValue(Name, CustomCameraKey, customCamera.ToString());
+            settings.Save();
+        };
+        menu.AddItem(cameraItem);
 
         bool controllersAvailable = DirectInputManager.GetDevices().Count > 0 || XInputManager.GetDevices().Count > 0;
 
@@ -229,7 +295,7 @@ public class TwoPlayerMod : Script
         player1 = player.Character;
         player1.IsInvincible = true;
 
-        player2 = World.CreateRandomPed(player1.GetOffsetInWorldCoords(new Vector3(0, 5, 0)));
+        player2 = World.CreatePed(characterHash, player1.GetOffsetInWorldCoords(new Vector3(0, 5, 0)));
         player2.ShootRate = 0;
         player2.IsEnemy = false;
         player2.IsInvincible = true;
@@ -267,6 +333,7 @@ public class TwoPlayerMod : Script
                 player2.SetIntoVehicle(v, VehicleSeat.Driver);
             }
         }
+        camera = World.CreateCamera(player2.GetOffsetInWorldCoords(new Vector3(0, 10, 10)), Vector3.Zero, 50);
     }
 
     /// <summary>
@@ -340,6 +407,8 @@ public class TwoPlayerMod : Script
     /// </summary>
     private void Clean()
     {
+        World.DestroyAllCameras();
+        World.RenderingCamera = null;
         if (fakeDevice != null)
         {
             fakeDevice.Stop();
@@ -363,20 +432,15 @@ public class TwoPlayerMod : Script
     }
 
     /// <summary>
-    /// This method will be used later to edit the camera and center it between the two players
+    /// This method will return the center of two given vectors
     /// </summary>
     /// <param name="start">Vector3 A</param>
     /// <param name="end">Vector3 B</param>
     /// <returns>The center Vector3 of the two given Vector3s</returns>
     public Vector3 CenterOfVectors(Vector3 start, Vector3 end)
     {
-        Vector3 sum = Vector3.Zero;
-        var difference = start - end;
-        var midPoint = start + difference * 1;
-        return midPoint;
+        return (start + end) * 0.5f;
     }
-
-
 
     /// <summary>
     /// This variable will hold the last VehicleAction in order to not spam the Native calls
@@ -388,6 +452,8 @@ public class TwoPlayerMod : Script
         menuPool.ProcessMenus();
         if (Enabled())
         {
+            UpdateCamera();
+
             if (player2.IsInVehicle())
             {
                 Vehicle v = player2.CurrentVehicle;
@@ -474,6 +540,33 @@ public class TwoPlayerMod : Script
         }
     }
 
+    /// <summary>
+    /// This will update the camera 
+    /// </summary>
+    private void UpdateCamera()
+    {
+        if (customCamera)
+        {
+            World.RenderingCamera = camera;
+            Vector3 p1Pos = player1.Position;
+            Vector3 p2Pos = player2.Position;
+
+            Vector3 center = CenterOfVectors(p1Pos, p2Pos);
+
+            camera.PointAt(center);
+
+            float dist = p1Pos.DistanceTo(p2Pos);
+
+            center.Y += 7.5f;
+            center.Z += 7.5f;
+
+            camera.Position = center;
+        }
+        else
+        {
+            World.RenderingCamera = null;
+        }
+    }
 
     /// <summary>
     /// Determines the needed action corresponding to current controller input, e.g. VehicleAction.RevEngine
@@ -484,11 +577,11 @@ public class TwoPlayerMod : Script
         Direction dir = input.GetDirection(DeviceButton.LeftStick);
         if (input.IsPressed(DeviceButton.A) || input.IsPressed(DeviceButton.RightShoulder))
         {
-            if (dir == Direction.Left)
+            if (dir == Direction.Left || dir == Direction.BackwardLeft || dir == Direction.ForwardLeft)
             {
                 return VehicleAction.HandBrakeLeft;
             }
-            else if (dir == Direction.Right)
+            else if (dir == Direction.Right || dir == Direction.BackwardRight || dir == Direction.ForwardRight)
             {
                 return VehicleAction.HandBrakeRight;
             }
@@ -500,27 +593,27 @@ public class TwoPlayerMod : Script
 
         if (input.IsPressed(DeviceButton.RightTrigger))
         {
-            if (dir == Direction.Left)
+            if (dir == Direction.Left || dir == Direction.BackwardLeft || dir == Direction.ForwardLeft)
             {
                 return VehicleAction.GoForwardLeft;
             }
-            else if (dir == Direction.Right)
+            else if (dir == Direction.Right || dir == Direction.BackwardRight || dir == Direction.ForwardRight)
             {
                 return VehicleAction.GoForwardRight;
             }
             else
             {
-                return VehicleAction.GoForwardStraight;
+                return VehicleAction.RevEngineFast;
             }
         }
 
         if (input.IsPressed(DeviceButton.LeftTrigger))
         {
-            if (dir == Direction.Left)
+            if (dir == Direction.Left || dir == Direction.BackwardLeft || dir == Direction.ForwardLeft)
             {
                 return VehicleAction.ReverseLeft;
             }
-            if (dir == Direction.Right)
+            if (dir == Direction.Right || dir == Direction.BackwardRight || dir == Direction.ForwardRight)
             {
                 return VehicleAction.ReverseRight;
             }
@@ -530,11 +623,11 @@ public class TwoPlayerMod : Script
             }
         }
 
-        if (dir == Direction.Left)
+        if (dir == Direction.Left || dir == Direction.BackwardLeft || dir == Direction.ForwardLeft)
         {
             return VehicleAction.SwerveRight;
         }
-        if (dir == Direction.Right)
+        if (dir == Direction.Right || dir == Direction.BackwardRight || dir == Direction.ForwardRight)
         {
             return VehicleAction.SwerveLeft;
         }
@@ -573,5 +666,16 @@ public class TwoPlayerMod : Script
             player2.Task.Jump();
             Wait(750);
         }
+
+        if (input.IsPressed(DeviceButton.B))
+        {
+            Ped p = World.GetClosestPed(player2.Position, 5);
+
+            if (p != null)
+            {
+                player2.Task.FightAgainst(p);
+            }
+        }
+
     }
 }

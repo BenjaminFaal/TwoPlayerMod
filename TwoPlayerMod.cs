@@ -666,16 +666,5 @@ public class TwoPlayerMod : Script
             player2.Task.Jump();
             Wait(750);
         }
-
-        if (input.IsPressed(DeviceButton.B))
-        {
-            Ped p = World.GetClosestPed(player2.Position, 5);
-
-            if (p != null)
-            {
-                player2.Task.FightAgainst(p);
-            }
-        }
-
     }
 }

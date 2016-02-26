@@ -1,12 +1,4 @@
-﻿using Benjamin94.Input;
-using SharpDX.DirectInput;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace Benjamin94
+﻿namespace Benjamin94
 {
     namespace Input
     {

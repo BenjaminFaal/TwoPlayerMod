@@ -9,8 +9,6 @@ using System.Collections.Generic;
 using Benjamin94.Input;
 using Benjamin94;
 using SharpDX.XInput;
-using FakeXboxController;
-using System.Threading;
 
 /// <summary>
 /// The main Script, this will handle all logic
@@ -24,10 +22,20 @@ public class TwoPlayerMod : Script
     public const string ControllerKey = "Controller";
     public const string CustomCameraKey = "CustomCamera";
 
-    // Players
+    // Player 1
     private Player player;
     private Ped player1;
+
+    // Player 2 
     private Ped player2;
+    private WeaponHash[] weapons = (WeaponHash[])Enum.GetValues(typeof(WeaponHash));
+    private int weaponIndex = 0;
+
+    /// <summary>
+    /// This variable will hold the last VehicleAction in order to not spam the Native calls
+    /// </summary>
+    private VehicleAction LastVehicleAction = VehicleAction.Wait;
+    private int lastTimeWeaponChanged, lastTimeJumped;
 
     // Menu
     private UIMenu menu;
@@ -40,9 +48,6 @@ public class TwoPlayerMod : Script
     // Controls
     private InputManager input;
 
-    // fake xbox controller to disable gta v from controlling player 1
-    private ScpDevice fakeDevice;
-
     // camera
     private bool customCamera = false;
     private Camera camera;
@@ -54,17 +59,6 @@ public class TwoPlayerMod : Script
 
         KeyDown += TwoPlayerMod_KeyDown;
         Tick += TwoPlayerMod_Tick;
-    }
-
-    // fake xbox controller to disable gta v from controlling player 1
-    private void SetupFakeDevice()
-    {
-        if (fakeDevice == null)
-        {
-            fakeDevice = new ScpDevice("{F679F562-3164-42CE-A4DB-E7DDBE723909}");
-            fakeDevice.Start();
-            UI.Notify("If the controller is controlling both characters, please reconnect it.");
-        }
     }
 
     /// <summary>
@@ -229,38 +223,6 @@ public class TwoPlayerMod : Script
     }
 
     /// <summary>
-    /// Method to configure controllers buttons
-    /// </summary>
-    /// <param name="btn">DeviceButton which to configure</param>
-    /// <param name="input">InputManager instance</param>
-    /// <param name="settings">The ScriptSettings object where the configuration needs to be saved</param>
-    /// <param name="guid">The guid of the Joystick</param>
-    /// <param name="btns">A List with already pressed buttons so that no double mappings can be made</param>
-    private void ConfigureButton(DeviceButton btn, DirectInputManager input, ScriptSettings settings, string guid, List<int> btns)
-    {
-        while (input.GetPressedButton() == -1)
-        {
-            UI.ShowSubtitle("Press ~g~'" + btn + "' ~w~on the controller.");
-            Wait(100);
-        }
-
-        int button = input.GetPressedButton();
-
-        // check if the configuration contains no mapping already
-        if (btns.Contains(button))
-        {
-            UI.Notify("Button already in use, please choose another button!");
-            ConfigureButton(btn, input, settings, guid, btns);
-        }
-        else
-        {
-            settings.SetValue(guid, btn.ToString(), button);
-            btns.Add(button);
-        }
-        Wait(250);
-    }
-
-    /// <summary>
     /// Gets called by NativeUI when the user selects "Toggle Mod" in the menu
     /// </summary>
     /// <param name="sender"></param>
@@ -272,12 +234,13 @@ public class TwoPlayerMod : Script
             try
             {
                 SetupController();
-                SetupPlayer2();
             }
             catch (Exception e)
             {
-                UI.Notify(e.Message);
+                UI.Notify("Error occured while loading controller: " + e.Message);
+                return;
             }
+            SetupPlayer2();
         }
         else
         {
@@ -296,7 +259,6 @@ public class TwoPlayerMod : Script
         player1.IsInvincible = true;
 
         player2 = World.CreatePed(characterHash, player1.GetOffsetInWorldCoords(new Vector3(0, 5, 0)));
-        player2.ShootRate = 0;
         player2.IsEnemy = false;
         player2.IsInvincible = true;
         player2.DropsWeaponsOnDeath = false;
@@ -307,10 +269,12 @@ public class TwoPlayerMod : Script
         Function.Call(Hash.SET_PED_COMBAT_ATTRIBUTES, player2, 46, true);
 
         // TODO: make player2 able to aim and shoot
-        //foreach (WeaponHash w in Enum.GetValues(typeof(WeaponHash)))
-        //{
-        //    player2.Weapons.Give(w, int.MaxValue, w == WeaponHash.Pistol, true);
-        //}
+        foreach (WeaponHash w in Enum.GetValues(typeof(WeaponHash)))
+        {
+            player2.Weapons.Give(w, int.MaxValue, w == WeaponHash.SMG, true);
+        }
+
+        SelectWeapon(player2, WeaponHash.SMG);
 
         player2.Task.ClearAllImmediately();
 
@@ -333,7 +297,7 @@ public class TwoPlayerMod : Script
                 player2.SetIntoVehicle(v, VehicleSeat.Driver);
             }
         }
-        camera = World.CreateCamera(player2.GetOffsetInWorldCoords(new Vector3(0, 10, 10)), Vector3.Zero, 50);
+        camera = World.CreateCamera(player2.GetOffsetInWorldCoords(new Vector3(0, 10, 10)), Vector3.Zero, GameplayCamera.FieldOfView);
     }
 
     /// <summary>
@@ -343,8 +307,6 @@ public class TwoPlayerMod : Script
     {
         if (XInputManager.GetDevices().Count > 0)
         {
-            SetupFakeDevice();
-
             foreach (Controller ctrl in XInputManager.GetDevices())
             {
                 input = new XInputManager(ctrl);
@@ -365,7 +327,7 @@ public class TwoPlayerMod : Script
                     }
                     else
                     {
-                        throw new Exception("No valid controller configuration found, please configure one from the menu.");
+                        input = DirectInputManager.LoadConfig(stick, GetIniFile());
                     }
                 }
                 catch (Exception)
@@ -373,6 +335,12 @@ public class TwoPlayerMod : Script
                     throw;
                 }
             }
+
+            if (input == null)
+            {
+                throw new Exception("No valid controller configuration found, please configure one from the menu.");
+            }
+
         }
         UI.Notify("Using controller: " + input.DeviceName);
     }
@@ -409,12 +377,6 @@ public class TwoPlayerMod : Script
     {
         World.DestroyAllCameras();
         World.RenderingCamera = null;
-        if (fakeDevice != null)
-        {
-            fakeDevice.Stop();
-            fakeDevice = null;
-        }
-
         if (input != null)
         {
             input.Cleanup();
@@ -442,11 +404,6 @@ public class TwoPlayerMod : Script
         return (start + end) * 0.5f;
     }
 
-    /// <summary>
-    /// This variable will hold the last VehicleAction in order to not spam the Native calls
-    /// </summary>
-    private VehicleAction LastVehicleAction = VehicleAction.Wait;
-
     private void TwoPlayerMod_Tick(object sender, EventArgs e)
     {
         menuPool.ProcessMenus();
@@ -460,12 +417,26 @@ public class TwoPlayerMod : Script
 
                 if (v.GetPedOnSeat(VehicleSeat.Driver) == player2)
                 {
-                    VehicleAction action = GetVehicleAction();
+                    VehicleAction action = GetVehicleAction(v);
                     if (action != LastVehicleAction)
                     {
                         PerformVehicleAction(player2, v, action);
                         LastVehicleAction = action;
                     }
+                }
+
+                if (input.IsPressed(DeviceButton.X) && CanSelectWeapon())
+                {
+                    weaponIndex++;
+                    if (weaponIndex < 0)
+                    {
+                        weaponIndex = weapons.Length - 1;
+                    }
+                    if (weaponIndex >= weapons.Length)
+                    {
+                        weaponIndex = 0;
+                    }
+                    SelectWeapon(player2, weapons[weaponIndex]);
                 }
             }
             else
@@ -541,6 +512,64 @@ public class TwoPlayerMod : Script
     }
 
     /// <summary>
+    /// Helper method to determin if the player should change to another weapon
+    /// </summary>
+    /// <returns>true if time since last change is more than 500 Game.GameTime, false otherwise</returns>
+    private bool CanSelectWeapon()
+    {
+        return Game.GameTime - lastTimeWeaponChanged >= 500;
+    }
+
+    /// <summary>
+    /// Helper method to determin if the player is able to jump again
+    /// </summary>
+    /// <returns>true if time since last jump is more than 1000 Game.GameTime, false otherwise</returns>
+    private bool CanJump()
+    {
+        return Game.GameTime - lastTimeJumped >= 850;
+    }
+
+    /// <summary>
+    /// Updates the selection of weapon for Player 2
+    /// </summary>
+    /// <returns>true if weaponIndex changed, false otherwise</returns>
+    private bool UpdateWeaponIndex()
+    {
+        Direction dir = input.GetDirection(DeviceButton.RightStick);
+        switch (dir)
+        {
+            case Direction.Left:
+                weaponIndex--;
+                break;
+            case Direction.Right:
+                weaponIndex++;
+                break;
+            case Direction.ForwardLeft:
+                weaponIndex--;
+                break;
+            case Direction.ForwardRight:
+                weaponIndex++;
+                break;
+            case Direction.BackwardLeft:
+                weaponIndex--;
+                break;
+            case Direction.BackwardRight:
+                weaponIndex++;
+                break;
+        }
+
+        if (weaponIndex < 0)
+        {
+            weaponIndex = weapons.Length - 1;
+        }
+        if (weaponIndex >= weapons.Length)
+        {
+            weaponIndex = 0;
+        }
+        return dir != Direction.None;
+    }
+
+    /// <summary>
     /// This will update the camera 
     /// </summary>
     private void UpdateCamera()
@@ -561,6 +590,11 @@ public class TwoPlayerMod : Script
             center.Z += 7.5f;
 
             camera.Position = center;
+
+            if (player1.IsInVehicle() && player2.IsInVehicle() && (player1.CurrentVehicle == player2.CurrentVehicle))
+            {
+                World.RenderingCamera = null;
+            }
         }
         else
         {
@@ -572,8 +606,13 @@ public class TwoPlayerMod : Script
     /// Determines the needed action corresponding to current controller input, e.g. VehicleAction.RevEngine
     /// </summary>
     /// <returns>A VehicleAction enum</returns>
-    private VehicleAction GetVehicleAction()
+    private VehicleAction GetVehicleAction(Vehicle v)
     {
+        if (input.IsPressed(DeviceButton.LeftTrigger) && input.IsPressed(DeviceButton.RightTrigger))
+        {
+            return VehicleAction.Wait;
+        }
+
         Direction dir = input.GetDirection(DeviceButton.LeftStick);
         if (input.IsPressed(DeviceButton.A) || input.IsPressed(DeviceButton.RightShoulder))
         {
@@ -625,11 +664,11 @@ public class TwoPlayerMod : Script
 
         if (dir == Direction.Left || dir == Direction.BackwardLeft || dir == Direction.ForwardLeft)
         {
-            return VehicleAction.SwerveRight;
+            return VehicleAction.GoForwardLeft;
         }
         if (dir == Direction.Right || dir == Direction.BackwardRight || dir == Direction.ForwardRight)
         {
-            return VehicleAction.SwerveLeft;
+            return VehicleAction.GoForwardRight;
         }
 
         return VehicleAction.Wait;
@@ -647,7 +686,6 @@ public class TwoPlayerMod : Script
         Function.Call(Hash.TASK_VEHICLE_TEMP_ACTION, ped, vehicle, (int)action, -1);
     }
 
-
     /// <summary>
     /// TODO: This method needs to be made better for more natural movement.
     /// </summary>
@@ -655,16 +693,38 @@ public class TwoPlayerMod : Script
     {
         Vector2 vector = input.GetState().LeftThumbStick;
         Vector3 newPos = new Vector3(vector.X, vector.Y, 0);
+
         if (newPos != Vector3.Zero)
         {
             newPos = player2.GetOffsetInWorldCoords(newPos);
             player2.Task.GoTo(newPos, true, 1);
+            player2.Task.ClearAll();
         }
 
-        if (input.IsPressed(DeviceButton.X))
+        if (input.IsPressed(DeviceButton.X) && CanJump())
         {
             player2.Task.Jump();
-            Wait(750);
+            lastTimeJumped = Game.GameTime;
         }
+
+        if (input.IsPressed(DeviceButton.LeftShoulder) && CanSelectWeapon())
+        {
+            if (UpdateWeaponIndex())
+            {
+                SelectWeapon(player2, weapons[weaponIndex]);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Method to select another weapon for a Ped
+    /// </summary>
+    /// <param name="p">target Ped</param>
+    /// <param name="weaponHash">target WeaponHash</param>
+    private void SelectWeapon(Ped p, WeaponHash weaponHash)
+    {
+        Function.Call(Hash.SET_CURRENT_PED_WEAPON, p, new InputArgument(weaponHash), true);
+        UI.ShowSubtitle("Player 2 weapon: ~g~" + weaponHash);
+        lastTimeWeaponChanged = Game.GameTime;
     }
 }

@@ -3,6 +3,7 @@ using SharpDX.DirectInput;
 using System;
 using System.Collections.Generic;
 using GTA.Math;
+using System.Linq;
 
 namespace Benjamin94
 {
@@ -14,6 +15,7 @@ namespace Benjamin94
         /// </summary>
         class DirectInputManager : InputManager
         {
+            public const string DpadTypeKey = "DpadType";
 
             /// <summary>
             /// The Joystick which will be managed by this InputManager
@@ -23,7 +25,7 @@ namespace Benjamin94
             /// <summary>
             /// Here the DeviceButton config from the ini file will be stored
             /// </summary>
-            private DeviceButton[] config;
+            private List<Tuple<int, DeviceButton>> config;
 
             public override string DeviceName
             {
@@ -41,8 +43,11 @@ namespace Benjamin94
             public DirectInputManager(Joystick device)
             {
                 this.device = device;
-                device.Acquire();
-                config = new DeviceButton[128];
+                //     if (device!=null)
+                //     {
+                //          device.Acquire();
+                //     }
+                config = new List<Tuple<int, DeviceButton>>(); // for digital dpads
 
                 DeviceState state = GetState();
                 X_CENTER_L = state.LeftThumbStick.X;
@@ -124,19 +129,29 @@ namespace Benjamin94
             public static DirectInputManager LoadConfig(Joystick stick, string file)
             {
                 DirectInputManager manager = new DirectInputManager(stick);
-                string name = stick.Information.ProductGuid.ToString();
-
                 try
                 {
+                    string name = stick.Information.ProductGuid.ToString();
                     ScriptSettings data = ScriptSettings.Load(file);
-                    Array.Clear(manager.config, 0, manager.config.Length);
+
+                    DpadType dpadType = DpadType.Unknown;
+                    try
+                    {
+                        dpadType = (DpadType)Enum.Parse(typeof(DpadType), data.GetValue(name, DpadTypeKey, DpadType.Unknown.ToString()));
+                    }
+                    catch (Exception)
+                    {
+                        throw new Exception("Invalid controller config, unknown " + DpadTypeKey + " reconfigure your controller from the menu.");
+                    }
+
+                    // Array.Clear(manager.config, 0, manager.config.Length);
                     foreach (DeviceButton btn in Enum.GetValues(typeof(DeviceButton)))
                     {
                         int btnIndex = data.GetValue(name, btn.ToString(), -1);
 
                         try
                         {
-                            manager.config[btnIndex] = btn;
+                            manager.config.Add(new Tuple<int, DeviceButton>(btnIndex, btn));
                         }
                         catch (Exception)
                         {
@@ -151,6 +166,25 @@ namespace Benjamin94
                 return manager;
             }
 
+            public int GetDpadValue()
+            {
+                try
+                {
+                    device.Poll();
+                    JoystickState state = device.GetCurrentState();
+                    foreach (int value in device.GetCurrentState().PointOfViewControllers)
+                    {
+                        if (value != -1)
+                        {
+                            return value;
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                }
+                return -1;
+            }
 
             /// <summary>
             /// Helper method to check if a controller is configured as default in a config file
@@ -205,7 +239,17 @@ namespace Benjamin94
             /// <returns></returns>
             private static Vector2 NormalizeThumbStick(float x, float y)
             {
-                return new Vector2((x - JOY_32767) / JOY_32767, -(y - JOY_32767) / JOY_32767);
+                Vector2 vector = new Vector2((x - JOY_32767) / JOY_32767, -(y - JOY_32767) / JOY_32767);
+
+                if (Math.Abs(vector.X) < 0.4f)
+                {
+                    vector.X = 0;
+                }
+                if (Math.Abs(vector.Y) < 0.4f)
+                {
+                    vector.Y = 0;
+                }
+                return vector;
             }
 
             public override DeviceState GetState()
@@ -223,12 +267,23 @@ namespace Benjamin94
                     {
                         if (buttons[i])
                         {
-                            devState.Buttons.Add(config[i + 1]);
+                            devState.Buttons.Add(config.FirstOrDefault(item => item.Item1 == i + 1).Item2);
+                        }
+                    }
+
+                    // for ps4 controllers or devices with dpads that are not recognized as buttons
+                    foreach (int pov in state.PointOfViewControllers)
+                    {
+                        Tuple<int, DeviceButton> tuple = config.FirstOrDefault(item => item.Item1 == pov);
+                        if (tuple != null)
+                        {
+                            devState.Buttons.Add(tuple.Item2);
                         }
                     }
 
                     devState.LeftThumbStick = NormalizeThumbStick(state.X, state.Y);
                     devState.RightThumbStick = NormalizeThumbStick(state.Z, state.RotationZ);
+
                     return devState;
                 }
                 catch (Exception)

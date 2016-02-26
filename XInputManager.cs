@@ -155,14 +155,13 @@ namespace Benjamin94
             /// <param name="y">input Y</param>
             /// <param name="deadZone">the deadzone to remove</param>
             /// <returns></returns>
-            private static Vector2 NormalizeThumbStick(short x, short y, short deadZone)
+            private static Vector2 NormalizeThumbStick(short x, short y, int deadZone)
             {
                 int fx = x;
                 int fy = y;
-                int fdz = deadZone;
-                if (fx * fx < fdz * fdz)
+                if (fx * fx < deadZone * deadZone)
                     x = 0;
-                if (fy * fy < fdz * fdz)
+                if (fy * fy < deadZone * deadZone)
                     y = 0;
                 return new Vector2(x < 0 ? -((float)x / (float)short.MinValue) : (float)x / (float)short.MaxValue,
                                    y < 0 ? -((float)y / (float)short.MinValue) : (float)y / (float)short.MaxValue);

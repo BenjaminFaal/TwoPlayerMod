@@ -9,6 +9,8 @@ using System.Collections.Generic;
 using Benjamin94.Input;
 using Benjamin94;
 using SharpDX.XInput;
+using System.Linq;
+using System.Drawing;
 
 /// <summary>
 /// The main Script, this will handle all logic
@@ -20,7 +22,8 @@ public class TwoPlayerMod : Script
     private const string ToggleMenuKey = "ToggleMenuKey";
     private const string CharacterHashKey = "CharacterHash";
     public const string ControllerKey = "Controller";
-    public const string CustomCameraKey = "CustomCamera";
+    private const string CustomCameraKey = "CustomCamera";
+    private const string CustomCameraZoomKey = "CustomCameraZoom";
 
     // Player 1
     private Player player;
@@ -30,12 +33,54 @@ public class TwoPlayerMod : Script
     private Ped player2;
     private WeaponHash[] weapons = (WeaponHash[])Enum.GetValues(typeof(WeaponHash));
     private int weaponIndex = 0;
+    private int WeaponIndex
+    {
+        get
+        {
+            if (weaponIndex < 0)
+            {
+                weaponIndex = weapons.Length - 1;
+            }
+            if (weaponIndex >= weapons.Length)
+            {
+                weaponIndex = 0;
+            }
+            return weaponIndex;
+        }
+        set
+        {
+            weaponIndex = value;
+        }
+    }
+
+    private Ped[] targets = null;
+    private int targetIndex = 0;
+    private int TargetIndex
+    {
+        get
+        {
+            if (targetIndex < 0)
+            {
+                targetIndex = targets.Length - 1;
+            }
+            if (targetIndex >= targets.Length)
+            {
+                targetIndex = 0;
+            }
+            return targetIndex;
+        }
+        set
+        {
+            targetIndex = value;
+        }
+    }
 
     /// <summary>
     /// This variable will hold the last VehicleAction in order to not spam the Native calls
     /// </summary>
     private VehicleAction LastVehicleAction = VehicleAction.Wait;
-    private int lastTimeWeaponChanged, lastTimeJumped;
+
+    private Dictionary<Player2Action, int> lastActions = new Dictionary<Player2Action, int>();
 
     // Menu
     private UIMenu menu;
@@ -51,6 +96,28 @@ public class TwoPlayerMod : Script
     // camera
     private bool customCamera = false;
     private Camera camera;
+    private const int DefaultCameraZoom = 7;
+    private int cameraZoom = DefaultCameraZoom;
+    private int CameraZoom
+    {
+        get
+        {
+            return cameraZoom;
+        }
+        set
+        {
+            cameraZoom = value;
+
+            if (cameraZoom <= DefaultCameraZoom)
+            {
+                cameraZoom = DefaultCameraZoom;
+            }
+            if (cameraZoom > 20)
+            {
+                cameraZoom = DefaultCameraZoom;
+            }
+        }
+    }
 
     public TwoPlayerMod()
     {
@@ -104,6 +171,19 @@ public class TwoPlayerMod : Script
             settings.SetValue(Name, CustomCameraKey, "False");
             settings.Save();
         }
+
+        try
+        {
+            CameraZoom = int.Parse(settings.GetValue(Name, CustomCameraZoomKey, DefaultCameraZoom.ToString()));
+        }
+        catch (Exception)
+        {
+            CameraZoom = DefaultCameraZoom;
+            UI.Notify("Failed to read '" + CustomCameraZoomKey + "', reverting to default " + CustomCameraZoomKey + " " + DefaultCameraZoom);
+
+            settings.SetValue(Name, CustomCameraZoomKey, DefaultCameraZoom);
+            settings.Save();
+        }
     }
 
     /// <summary>
@@ -148,29 +228,66 @@ public class TwoPlayerMod : Script
             }
         }
 
+        ScriptSettings settings = ScriptSettings.Load(GetIniFile());
+
         UIMenuListItem characterItem = new UIMenuListItem("Character", hashes, index, "Select a character for player 2.");
 
         characterItem.OnListChanged += (s, i) =>
         {
             PedHash selectedHash = Enum.Parse(typeof(PedHash), s.IndexToItem(s.Index));
             characterHash = selectedHash;
-
-            ScriptSettings settings = ScriptSettings.Load(GetIniFile());
             settings.SetValue(Name, CharacterHashKey, selectedHash.ToString());
             settings.Save();
         };
 
         menu.AddItem(characterItem);
 
+        UIMenuItem cameraZoomItem = new UIMenuItem("Custom camera zoom " + CameraZoom, "Sets the custom camera zoom, from 7.5 to 20");
+        cameraZoomItem.Enabled = customCamera;
+        cameraZoomItem.Activated += (s, i) =>
+        {
+            if (Enabled() && customCamera)
+            {
+                while (!Game.IsKeyPressed(Keys.Space))
+                {
+                    UI.ShowSubtitle("Camera zoom ~g~(" + CameraZoom + ")~w~, press ~g~Plus~w~ or ~g~Min~w~ to change. Press ~g~" + Keys.Space + " ~w~to confirm.");
+                    if (Game.IsKeyPressed(Keys.Subtract))
+                    {
+                        CameraZoom--;
+                        Wait(250);
+                    }
+                    if (Game.IsKeyPressed(Keys.Add))
+                    {
+                        CameraZoom++;
+                        Wait(250);
+                    }
+
+                    UpdateCamera();
+                    Yield();
+                }
+
+                UI.ShowSubtitle(string.Empty);
+                settings.SetValue(Name, CustomCameraZoomKey, CameraZoom);
+                settings.Save();
+            }
+            else
+            {
+                UI.Notify("Please enable the mod and custom camera first before setting a zoom level.");
+            }
+        };
+
         UIMenuCheckboxItem cameraItem = new UIMenuCheckboxItem("Toggle custom camera", customCamera, "This enables/disables the custom camera");
         cameraItem.CheckboxEvent += (s, i) =>
         {
             customCamera = !customCamera;
-            ScriptSettings settings = ScriptSettings.Load(GetIniFile());
+            cameraZoomItem.Enabled = customCamera;
             settings.SetValue(Name, CustomCameraKey, customCamera.ToString());
             settings.Save();
         };
         menu.AddItem(cameraItem);
+
+
+        menu.AddItem(cameraZoomItem);
 
         bool controllersAvailable = DirectInputManager.GetDevices().Count > 0 || XInputManager.GetDevices().Count > 0;
 
@@ -268,10 +385,11 @@ public class TwoPlayerMod : Script
         Function.Call(Hash.SET_PED_FLEE_ATTRIBUTES, player2, 0, 0);
         Function.Call(Hash.SET_PED_COMBAT_ATTRIBUTES, player2, 46, true);
 
-        // TODO: make player2 able to aim and shoot
-        foreach (WeaponHash w in Enum.GetValues(typeof(WeaponHash)))
+        foreach (WeaponHash hash in Enum.GetValues(typeof(WeaponHash)))
         {
-            player2.Weapons.Give(w, int.MaxValue, w == WeaponHash.SMG, true);
+            Weapon weapon = player2.Weapons.Give(hash, int.MaxValue, true, true);
+            weapon.InfiniteAmmo = true;
+            weapon.InfiniteAmmoClip = true;
         }
 
         SelectWeapon(player2, WeaponHash.SMG);
@@ -298,6 +416,13 @@ public class TwoPlayerMod : Script
             }
         }
         camera = World.CreateCamera(player2.GetOffsetInWorldCoords(new Vector3(0, 10, 10)), Vector3.Zero, GameplayCamera.FieldOfView);
+
+        lastActions.Clear();
+        foreach (Player2Action action in Enum.GetValues(typeof(Player2Action)))
+        {
+            lastActions.Add(action, Game.GameTime);
+        }
+        targets = GetTargets();
     }
 
     /// <summary>
@@ -413,6 +538,8 @@ public class TwoPlayerMod : Script
 
             if (player2.IsInVehicle())
             {
+                UpdateCombat(DeviceButton.LeftShoulder, DeviceButton.RightShoulder);
+
                 Vehicle v = player2.CurrentVehicle;
 
                 if (v.GetPedOnSeat(VehicleSeat.Driver) == player2)
@@ -425,18 +552,15 @@ public class TwoPlayerMod : Script
                     }
                 }
 
-                if (input.IsPressed(DeviceButton.X) && CanSelectWeapon())
+                if (input.isPressed(DeviceButton.X))
                 {
-                    weaponIndex++;
-                    if (weaponIndex < 0)
+                    if (CanDoAction(Player2Action.SelectWeapon, 500))
                     {
-                        weaponIndex = weapons.Length - 1;
+                        WeaponIndex++;
+                        SelectWeapon(player2, weapons[WeaponIndex]);
                     }
-                    if (weaponIndex >= weapons.Length)
-                    {
-                        weaponIndex = 0;
-                    }
-                    SelectWeapon(player2, weapons[weaponIndex]);
+
+                    UI.ShowSubtitle("Player 2 weapon: ~g~" + weapons[WeaponIndex]);
                 }
             }
             else
@@ -445,7 +569,7 @@ public class TwoPlayerMod : Script
             }
 
             // for player2 entering / leaving a vehicle
-            if (input.IsPressed(DeviceButton.Y))
+            if (input.isPressed(DeviceButton.Y))
             {
                 if (player2.IsInVehicle())
                 {
@@ -512,21 +636,23 @@ public class TwoPlayerMod : Script
     }
 
     /// <summary>
-    /// Helper method to determin if the player should change to another weapon
+    /// Helper method to determine if player 2 is allowed to do the given Player2Action
     /// </summary>
-    /// <returns>true if time since last change is more than 500 Game.GameTime, false otherwise</returns>
-    private bool CanSelectWeapon()
+    /// <param name="action">Player2Action to check</param>
+    /// <param name="time">minimal time that has to be past before true</param>
+    /// <returns>true if time since last Player2Action is more than given time, false otherwise</returns>
+    private bool CanDoAction(Player2Action action, int time)
     {
-        return Game.GameTime - lastTimeWeaponChanged >= 500;
+        return Game.GameTime - lastActions[action] >= time;
     }
 
     /// <summary>
-    /// Helper method to determin if the player is able to jump again
+    /// Updates the time of the given Player2Action
     /// </summary>
-    /// <returns>true if time since last jump is more than 1000 Game.GameTime, false otherwise</returns>
-    private bool CanJump()
+    /// <param name="action">Target Player2Action</param>
+    private void UpdateLastAction(Player2Action action)
     {
-        return Game.GameTime - lastTimeJumped >= 850;
+        lastActions[action] = Game.GameTime;
     }
 
     /// <summary>
@@ -536,37 +662,18 @@ public class TwoPlayerMod : Script
     private bool UpdateWeaponIndex()
     {
         Direction dir = input.GetDirection(DeviceButton.RightStick);
-        switch (dir)
-        {
-            case Direction.Left:
-                weaponIndex--;
-                break;
-            case Direction.Right:
-                weaponIndex++;
-                break;
-            case Direction.ForwardLeft:
-                weaponIndex--;
-                break;
-            case Direction.ForwardRight:
-                weaponIndex++;
-                break;
-            case Direction.BackwardLeft:
-                weaponIndex--;
-                break;
-            case Direction.BackwardRight:
-                weaponIndex++;
-                break;
-        }
 
-        if (weaponIndex < 0)
+        if (input.IsDirectionLeft(dir))
         {
-            weaponIndex = weapons.Length - 1;
+            WeaponIndex--;
+            return true;
         }
-        if (weaponIndex >= weapons.Length)
+        if (input.IsDirectionRight(dir))
         {
-            weaponIndex = 0;
+            WeaponIndex++;
+            return true;
         }
-        return dir != Direction.None;
+        return false;
     }
 
     /// <summary>
@@ -586,8 +693,8 @@ public class TwoPlayerMod : Script
 
             float dist = p1Pos.DistanceTo(p2Pos);
 
-            center.Y += 7.5f;
-            center.Z += 7.5f;
+            center.Y += CameraZoom;
+            center.Z += CameraZoom;
 
             camera.Position = center;
 
@@ -608,13 +715,8 @@ public class TwoPlayerMod : Script
     /// <returns>A VehicleAction enum</returns>
     private VehicleAction GetVehicleAction(Vehicle v)
     {
-        if (input.IsPressed(DeviceButton.LeftTrigger) && input.IsPressed(DeviceButton.RightTrigger))
-        {
-            return VehicleAction.Wait;
-        }
-
         Direction dir = input.GetDirection(DeviceButton.LeftStick);
-        if (input.IsPressed(DeviceButton.A) || input.IsPressed(DeviceButton.RightShoulder))
+        if (input.isAnyPressed(DeviceButton.A, DeviceButton.RightShoulder))
         {
             if (dir == Direction.Left || dir == Direction.BackwardLeft || dir == Direction.ForwardLeft)
             {
@@ -630,7 +732,7 @@ public class TwoPlayerMod : Script
             }
         }
 
-        if (input.IsPressed(DeviceButton.RightTrigger))
+        if (input.isPressed(DeviceButton.RightTrigger))
         {
             if (dir == Direction.Left || dir == Direction.BackwardLeft || dir == Direction.ForwardLeft)
             {
@@ -646,7 +748,7 @@ public class TwoPlayerMod : Script
             }
         }
 
-        if (input.IsPressed(DeviceButton.LeftTrigger))
+        if (input.isPressed(DeviceButton.LeftTrigger))
         {
             if (dir == Direction.Left || dir == Direction.BackwardLeft || dir == Direction.ForwardLeft)
             {
@@ -662,15 +764,14 @@ public class TwoPlayerMod : Script
             }
         }
 
-        if (dir == Direction.Left || dir == Direction.BackwardLeft || dir == Direction.ForwardLeft)
+        if (input.IsDirectionLeft(dir))
         {
-            return VehicleAction.GoForwardLeft;
+            return VehicleAction.SwerveLeft;
         }
-        if (dir == Direction.Right || dir == Direction.BackwardRight || dir == Direction.ForwardRight)
+        if (input.IsDirectionRight(dir))
         {
-            return VehicleAction.GoForwardRight;
+            return VehicleAction.SwerveRight;
         }
-
         return VehicleAction.Wait;
     }
 
@@ -691,29 +792,136 @@ public class TwoPlayerMod : Script
     /// </summary>
     private void UpdateFoot()
     {
+        UpdateCombat(DeviceButton.LeftTrigger, DeviceButton.RightTrigger);
+
+        Direction dir = input.GetDirection(DeviceButton.LeftStick);
+
         Vector2 vector = input.GetState().LeftThumbStick;
         Vector3 newPos = new Vector3(vector.X, vector.Y, 0);
+
+        switch (dir)
+        {
+            case Direction.Backward:
+                while (input.GetDirection(DeviceButton.LeftStick) == Direction.Backward)
+                {
+                    Vector3 backkpos = player2.GetOffsetInWorldCoords(newPos);
+                    Function.Call(Hash.TASK_GO_STRAIGHT_TO_COORD, player2.Handle, backkpos.X, backkpos.Y, backkpos.Z, 1, 750, 0, 0);
+                    Yield();
+                }
+                break;
+        }
 
         if (newPos != Vector3.Zero)
         {
             newPos = player2.GetOffsetInWorldCoords(newPos);
-            player2.Task.GoTo(newPos, true, 1);
-            player2.Task.ClearAll();
+
+            float speed = input.isPressed(DeviceButton.A) ? 2f : 1f;
+
+            Function.Call(Hash.TASK_GO_STRAIGHT_TO_COORD, player2.Handle, newPos.X, newPos.Y, newPos.Z, speed, 750, player2.Heading, 0);
         }
 
-        if (input.IsPressed(DeviceButton.X) && CanJump())
+        if (input.isPressed(DeviceButton.X) && CanDoAction(Player2Action.Jump, 850))
         {
             player2.Task.Jump();
-            lastTimeJumped = Game.GameTime;
+            UpdateLastAction(Player2Action.Jump);
         }
 
-        if (input.IsPressed(DeviceButton.LeftShoulder) && CanSelectWeapon())
+        if (input.isPressed(DeviceButton.LeftShoulder))
         {
-            if (UpdateWeaponIndex())
+            if (CanDoAction(Player2Action.SelectWeapon, 500))
             {
-                SelectWeapon(player2, weapons[weaponIndex]);
+                if (UpdateWeaponIndex())
+                {
+                    SelectWeapon(player2, weapons[WeaponIndex]);
+                }
+            }
+            UI.ShowSubtitle("Player 2 weapon: ~g~" + weapons[WeaponIndex]);
+        }
+    }
+
+
+    /// <summary>
+    /// This will fire at the targeted ped and will handle changing targets
+    /// </summary>
+    /// <param name="firstButton">The first (aiming) button which needs to pressed before handling this update</param>
+    /// <param name="secondButton">The second (firing) button which needs to pressed before the actual shooting</param>
+    private void UpdateCombat(DeviceButton firstButton, DeviceButton secondButton)
+    {
+        if (input.isPressed(firstButton))
+        {
+            if (!input.isPressed(secondButton))
+            {
+                targets = GetTargets();
+            }
+            if (CanDoAction(Player2Action.SelectTarget, 500))
+            {
+                Direction dir = input.GetDirection(DeviceButton.RightStick);
+                if (input.IsDirectionLeft(dir))
+                {
+                    TargetIndex--;
+                    UpdateLastAction(Player2Action.SelectTarget);
+                }
+                if (input.IsDirectionRight(dir))
+                {
+                    TargetIndex++;
+                    UpdateLastAction(Player2Action.SelectTarget);
+                }
+            }
+
+            Ped target = targets.ElementAtOrDefault(TargetIndex);
+
+            if (target == null)
+            {
+                return;
+            }
+
+            if (!target.IsAlive)
+            {
+                targets = GetTargets();
+                //    return;
+            }
+
+            if (target != null)
+            {
+                World.DrawMarker(MarkerType.HorizontalSplitArrowCircle, target.Position, GameplayCamera.Direction, GameplayCamera.Rotation, new Vector3(2.5f, 2.5f, 2.5f), Color.OrangeRed);
+
+                if (input.isPressed(secondButton))
+                {
+                    if (CanDoAction(Player2Action.Shoot, 750))
+                    {
+                        player2.Task.ShootAt(target, 750, FiringPattern.FullAuto);
+                        UpdateLastAction(Player2Action.Shoot);
+                    }
+                }
+                else
+                {
+                    player2.Task.AimAt(target, 100);
+                }
             }
         }
+        else
+        {
+            TargetIndex = 0;
+        }
+    }
+
+    /// <summary>
+    /// Gets targets for player 2 in combat situations
+    /// </summary>
+    /// <returns>An array of Peds</returns>
+    private Ped[] GetTargets()
+    {
+        return World.GetNearbyPeds(player2, 50).Where(ped => IsValidTarget(ped)).OrderBy(ped => ped.Position.DistanceTo(player2.Position)).ToArray();
+    }
+
+    /// <summary>
+    /// Helper method to check if a Ped is a valid target for player 2
+    /// </summary>
+    /// <param name="target">The target Ped to check</param>
+    /// <returns></returns>
+    private bool IsValidTarget(Ped target)
+    {
+        return target != null && target != player1 && target.IsAlive && target.IsOnScreen;
     }
 
     /// <summary>
@@ -723,8 +931,8 @@ public class TwoPlayerMod : Script
     /// <param name="weaponHash">target WeaponHash</param>
     private void SelectWeapon(Ped p, WeaponHash weaponHash)
     {
+        WeaponIndex = Array.IndexOf(weapons, weaponHash);
         Function.Call(Hash.SET_CURRENT_PED_WEAPON, p, new InputArgument(weaponHash), true);
-        UI.ShowSubtitle("Player 2 weapon: ~g~" + weaponHash);
-        lastTimeWeaponChanged = Game.GameTime;
+        UpdateLastAction(Player2Action.SelectWeapon);
     }
 }

@@ -18,13 +18,68 @@
             public abstract string DeviceName { get; }
 
             /// <summary>
-            /// To determine if a DeviceButton is pressed at this moment or not
+            /// To determine if one or more DeviceButtons is/are pressed at this moment or not
+            /// </summary>
+            /// <param name="allPressed">True or false whether all given DeviceButtons need to pressed or just any of the DeviceButtons</param>
+            /// <param name="btns">The DeviceButtons to check</param>
+            /// <returns>true or false whether the DeviceButton is pressed</returns>
+            private bool IsPressed(bool allPressed, params DeviceButton[] btns)
+            {
+                DeviceState state = GetState();
+
+                if (allPressed)
+                {
+                    foreach (DeviceButton btn in btns)
+                    {
+                        allPressed = state.Buttons.Contains(btn);
+                        if (!allPressed)
+                        {
+                            return false;
+                        }
+                    }
+                    return allPressed;
+                }
+                else
+                {
+                    foreach (DeviceButton btn in btns)
+                    {
+                        if (state.Buttons.Contains(btn))
+                        {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            /// <summary>
+            /// Checks if a single of the given DeviceButtons is pressed
             /// </summary>
             /// <param name="btn">The DeviceButton to check</param>
-            /// <returns>true or false whether the DeviceButton is pressed</returns>
-            public bool IsPressed(DeviceButton btn)
+            /// <returns></returns>
+            public bool isPressed(DeviceButton btn)
             {
                 return GetState().Buttons.Contains(btn);
+            }
+
+            /// <summary>
+            /// Checks if all of the given DeviceButtons are pressed
+            /// </summary>
+            /// <param name="btns">The DeviceButtons to check</param>
+            /// <returns></returns>
+            public bool isAllPressed(params DeviceButton[] btns)
+            {
+                return IsPressed(true, btns);
+            }
+
+            /// <summary>
+            /// Checks if one of the given DeviceButtons is pressed
+            /// </summary>
+            /// <param name="btns">The DeviceButtons to check</param>
+            /// <returns></returns>
+            public bool isAnyPressed(params DeviceButton[] btns)
+            {
+                return IsPressed(false, btns);
             }
 
             /// <summary>
@@ -36,8 +91,6 @@
             /// <summary>
             /// Gets the direction that belongs to one of the Sticks
             /// </summary>
-            /// <param name="X">The input X value</param>
-            /// <param name="Y">The input Y value</param>
             /// <returns>The Direction corresponding with the X and Y value</returns>
             public Direction GetDirection(DeviceButton stick)
             {
@@ -53,6 +106,25 @@
                 }
 
                 return Direction.None;
+            }
+
+            /// <summary>
+            /// Helper method to check if any given Direction is left
+            /// </summary>
+            /// <param name="dir">The Direction to check</param>
+            /// <returns></returns>
+            public bool IsDirectionLeft(Direction dir)
+            {
+                return dir == Direction.Left || dir == Direction.BackwardLeft || dir == Direction.ForwardLeft;
+            }
+            /// <summary>
+            /// Helper method to check if any given Direction is right
+            /// </summary>
+            /// <param name="dir">The Direction to check</param>
+            /// <returns></returns>
+            public bool IsDirectionRight(Direction dir)
+            {
+                return dir == Direction.Right || dir == Direction.BackwardRight || dir == Direction.ForwardRight;
             }
 
             /// <summary>

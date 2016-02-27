@@ -7,10 +7,8 @@ namespace Benjamin94
     {
         public class DeviceState
         {
- 
-
             // the X and Y values of the sticks
-            public Vector2 LeftThumbStick = new Vector2(), RightThumbStick = new Vector2();
+            public Vector2 LeftThumbStick, RightThumbStick;
             // the buttons
             public List<DeviceButton> Buttons = new List<DeviceButton>();
 
@@ -18,7 +16,6 @@ namespace Benjamin94
             {
                 return "LeftStick: " + LeftThumbStick + ", RightStick: " + RightThumbStick + ", Buttons: " + string.Join(",", Buttons);
             }
-
         }
     }
 }

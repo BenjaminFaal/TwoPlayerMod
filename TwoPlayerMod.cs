@@ -23,7 +23,9 @@ public class TwoPlayerMod : Script
     private const string CharacterHashKey = "CharacterHash";
     public const string ControllerKey = "Controller";
     private const string CustomCameraKey = "CustomCamera";
-    private const string CustomCameraZoomKey = "CustomCameraZoom";
+    private const string PlayerTwoBlipSpriteKey = "PlayerTwoBlipSprite";
+    private const string PlayerTwoBlipColorKey = "PlayerTwoBlipColor";
+
 
     // Player 1
     private Player player;
@@ -31,6 +33,8 @@ public class TwoPlayerMod : Script
 
     // Player 2 
     private Ped player2;
+    private BlipSprite p2BlipSprite = BlipSprite.Standard;
+    private BlipColor p2BlipColor = BlipColor.Green;
     private WeaponHash[] weapons = (WeaponHash[])Enum.GetValues(typeof(WeaponHash));
     private int weaponIndex = 0;
     private int WeaponIndex
@@ -96,28 +100,8 @@ public class TwoPlayerMod : Script
     // camera
     private bool customCamera = false;
     private Camera camera;
-    private const int DefaultCameraZoom = 7;
-    private int cameraZoom = DefaultCameraZoom;
-    private int CameraZoom
-    {
-        get
-        {
-            return cameraZoom;
-        }
-        set
-        {
-            cameraZoom = value;
 
-            if (cameraZoom <= DefaultCameraZoom)
-            {
-                cameraZoom = DefaultCameraZoom;
-            }
-            if (cameraZoom > 20)
-            {
-                cameraZoom = DefaultCameraZoom;
-            }
-        }
-    }
+    private bool runTick = true;
 
     public TwoPlayerMod()
     {
@@ -174,14 +158,25 @@ public class TwoPlayerMod : Script
 
         try
         {
-            CameraZoom = int.Parse(settings.GetValue(Name, CustomCameraZoomKey, DefaultCameraZoom.ToString()));
+            p2BlipSprite = settings.GetValue(Name, PlayerTwoBlipSpriteKey, p2BlipSprite);
         }
         catch (Exception)
         {
-            CameraZoom = DefaultCameraZoom;
-            UI.Notify("Failed to read '" + CustomCameraZoomKey + "', reverting to default " + CustomCameraZoomKey + " " + DefaultCameraZoom);
+            UI.Notify("Failed to read '" + PlayerTwoBlipSpriteKey + "', reverting to default " + PlayerTwoBlipSpriteKey + " Standard");
 
-            settings.SetValue(Name, CustomCameraZoomKey, DefaultCameraZoom);
+            settings.SetValue(Name, PlayerTwoBlipSpriteKey, p2BlipSprite);
+            settings.Save();
+        }
+
+        try
+        {
+            p2BlipColor = settings.GetValue(Name, PlayerTwoBlipColorKey, p2BlipColor);
+        }
+        catch (Exception)
+        {
+            UI.Notify("Failed to read '" + PlayerTwoBlipColorKey + "', reverting to default " + PlayerTwoBlipColorKey + " Green");
+
+            settings.SetValue(Name, PlayerTwoBlipColorKey, p2BlipColor);
             settings.Save();
         }
     }
@@ -230,7 +225,7 @@ public class TwoPlayerMod : Script
 
         ScriptSettings settings = ScriptSettings.Load(GetIniFile());
 
-        UIMenuListItem characterItem = new UIMenuListItem("Character", hashes, index, "Select a character for player 2.");
+        UIMenuListItem characterItem = new UIMenuListItem("Character", hashes, index, "Select a character for player 2");
 
         characterItem.OnListChanged += (s, i) =>
         {
@@ -242,52 +237,14 @@ public class TwoPlayerMod : Script
 
         menu.AddItem(characterItem);
 
-        UIMenuItem cameraZoomItem = new UIMenuItem("Custom camera zoom " + CameraZoom, "Sets the custom camera zoom, from " + DefaultCameraZoom + " to 20");
-        cameraZoomItem.Enabled = customCamera;
-        cameraZoomItem.Activated += (s, i) =>
-        {
-            if (Enabled() && customCamera)
-            {
-                while (!Game.IsKeyPressed(Keys.Space))
-                {
-                    UI.ShowSubtitle("Camera zoom ~g~(" + CameraZoom + ")~w~, press ~g~Plus~w~ or ~g~Min~w~ to change. Press ~g~" + Keys.Space + " ~w~to confirm.");
-                    if (Game.IsKeyPressed(Keys.Subtract))
-                    {
-                        CameraZoom--;
-                        Wait(250);
-                    }
-                    if (Game.IsKeyPressed(Keys.Add))
-                    {
-                        CameraZoom++;
-                        Wait(250);
-                    }
-
-                    UpdateCamera();
-                    Yield();
-                }
-
-                UI.ShowSubtitle(string.Empty);
-                settings.SetValue(Name, CustomCameraZoomKey, CameraZoom);
-                settings.Save();
-            }
-            else
-            {
-                UI.Notify("Please enable the mod and custom camera first before setting a zoom level.");
-            }
-        };
-
-        UIMenuCheckboxItem cameraItem = new UIMenuCheckboxItem("Toggle custom camera", customCamera, "This enables/disables the custom camera");
+        UIMenuCheckboxItem cameraItem = new UIMenuCheckboxItem("Toggle GTA:SA camera", customCamera, "This enables/disables the GTA:SA 2 player style camera");
         cameraItem.CheckboxEvent += (s, i) =>
         {
             customCamera = !customCamera;
-            cameraZoomItem.Enabled = customCamera;
             settings.SetValue(Name, CustomCameraKey, customCamera.ToString());
             settings.Save();
         };
         menu.AddItem(cameraItem);
-
-
-        menu.AddItem(cameraZoomItem);
 
         bool controllersAvailable = DirectInputManager.GetDevices().Count > 0 || XInputManager.GetDevices().Count > 0;
 
@@ -366,6 +323,11 @@ public class TwoPlayerMod : Script
         menu.Subtitle.Caption = Enabled() ? "~g~Enabled" : "~r~Disabled";
     }
 
+    private void setupCam()
+    {
+        camera = World.CreateCamera(player2.GetOffsetInWorldCoords(new Vector3(0, 10, 10)), Vector3.Zero, GameplayCamera.FieldOfView);
+    }
+
     /// <summary>
     /// Sets up Player 2
     /// </summary>
@@ -375,7 +337,25 @@ public class TwoPlayerMod : Script
         player1 = player.Character;
         player1.IsInvincible = true;
 
-        player2 = World.CreatePed(characterHash, player1.GetOffsetInWorldCoords(new Vector3(0, 5, 0)));
+        int iterations = 0;
+        do
+        {
+            if (iterations == 20)
+            {
+                UI.Notify("Wasn't able to create 2nd player.");
+                player1.IsInvincible = false;
+                return;
+            }
+            else if (iterations == 0 || iterations % 5 == 0)
+            {
+                player2 = World.CreatePed(characterHash, player1.GetOffsetInWorldCoords(new Vector3(0, 5, 0)));
+            }
+            iterations++;
+
+            Wait(200);
+        }
+        while (!player2.Exists());
+
         player2.IsEnemy = false;
         player2.IsInvincible = true;
         player2.DropsWeaponsOnDeath = false;
@@ -400,8 +380,8 @@ public class TwoPlayerMod : Script
 
         player2.NeverLeavesGroup = true;
         player2.RelationshipGroup = player1.RelationshipGroup;
-        player2.AddBlip().Sprite = BlipSprite.Standard;
-        player2.CurrentBlip.Color = BlipColor.Green;
+        player2.AddBlip().Sprite = p2BlipSprite;
+        player2.CurrentBlip.Color = p2BlipColor;
 
         if (player1.IsInVehicle())
         {
@@ -415,7 +395,8 @@ public class TwoPlayerMod : Script
                 player2.SetIntoVehicle(v, VehicleSeat.Driver);
             }
         }
-        camera = World.CreateCamera(player2.GetOffsetInWorldCoords(new Vector3(0, 10, 10)), Vector3.Zero, GameplayCamera.FieldOfView);
+
+        setupCam();
 
         lastActions.Clear();
         foreach (Player2Action action in Enum.GetValues(typeof(Player2Action)))
@@ -494,14 +475,20 @@ public class TwoPlayerMod : Script
         }
     }
 
+    private void destroyCam()
+    {
+        World.DestroyAllCameras();
+        World.RenderingCamera = null;
+    }
+
 
     /// <summary>
     /// Cleans up the script, deletes Player2 and cleans the InputManager system
     /// </summary>
     private void Clean()
     {
-        World.DestroyAllCameras();
-        World.RenderingCamera = null;
+        destroyCam();
+
         if (input != null)
         {
             input.Cleanup();
@@ -538,11 +525,30 @@ public class TwoPlayerMod : Script
         return (start + end) * 0.5f;
     }
 
+    private bool playerArrestedOrDead()
+    {
+        return Function.Call<bool>(Hash.IS_PLAYER_BEING_ARRESTED, player, true) || Function.Call<bool>(Hash.IS_PLAYER_BEING_ARRESTED, player, false) || player1.IsDead || Function.Call<bool>(Hash.IS_SCREEN_FADING_OUT);
+    }
+
     private void TwoPlayerMod_Tick(object sender, EventArgs e)
     {
         menuPool.ProcessMenus();
-        if (Enabled())
+        if (runTick && Enabled())
         {
+            if (playerArrestedOrDead())
+            {
+                runTick = false; //don't want to run this code again while the player is still arrested/dead
+                destroyCam();
+
+                while (playerArrestedOrDead() || Function.Call<bool>(Hash.IS_SCREEN_FADING_IN)) Wait(500);
+
+                player2.Position = World.GetNextPositionOnStreet(player1.GetOffsetInWorldCoords(new Vector3(0, 5, 0)));
+
+                setupCam();
+
+                runTick = true;
+            }
+
             UpdateCamera();
 
             if (player2.IsInVehicle())
@@ -702,8 +708,8 @@ public class TwoPlayerMod : Script
 
             float dist = p1Pos.DistanceTo(p2Pos);
 
-            center.Y += CameraZoom;
-            center.Z += CameraZoom;
+            center.Y += 5f + (dist / 1.6f);
+            center.Z += 2f + (dist / 1.4f);
 
             camera.Position = center;
 
@@ -763,7 +769,7 @@ public class TwoPlayerMod : Script
             {
                 return VehicleAction.ReverseLeft;
             }
-            if (dir == Direction.Right || dir == Direction.BackwardRight || dir == Direction.ForwardRight)
+            else if (dir == Direction.Right || dir == Direction.BackwardRight || dir == Direction.ForwardRight)
             {
                 return VehicleAction.ReverseRight;
             }
@@ -777,10 +783,11 @@ public class TwoPlayerMod : Script
         {
             return VehicleAction.SwerveRight;
         }
-        if (input.IsDirectionRight(dir))
+        else if (input.IsDirectionRight(dir))
         {
             return VehicleAction.SwerveLeft;
         }
+
         return VehicleAction.Wait;
     }
 

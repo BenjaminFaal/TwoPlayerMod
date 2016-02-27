@@ -775,11 +775,11 @@ public class TwoPlayerMod : Script
 
         if (input.IsDirectionLeft(dir))
         {
-            return VehicleAction.SwerveLeft;
+            return VehicleAction.SwerveRight;
         }
         if (input.IsDirectionRight(dir))
         {
-            return VehicleAction.SwerveRight;
+            return VehicleAction.SwerveLeft;
         }
         return VehicleAction.Wait;
     }

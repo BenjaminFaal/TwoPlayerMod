@@ -794,22 +794,8 @@ public class TwoPlayerMod : Script
     {
         UpdateCombat(DeviceButton.LeftTrigger, DeviceButton.RightTrigger);
 
-        Direction dir = input.GetDirection(DeviceButton.LeftStick);
-
         Vector2 vector = input.GetState().LeftThumbStick;
         Vector3 newPos = new Vector3(vector.X, vector.Y, 0);
-
-        switch (dir)
-        {
-            case Direction.Backward:
-                while (input.GetDirection(DeviceButton.LeftStick) == Direction.Backward)
-                {
-                    Vector3 backkpos = player2.GetOffsetInWorldCoords(newPos);
-                    Function.Call(Hash.TASK_GO_STRAIGHT_TO_COORD, player2.Handle, backkpos.X, backkpos.Y, backkpos.Z, 1, 750, 0, 0);
-                    Yield();
-                }
-                break;
-        }
 
         if (newPos != Vector3.Zero)
         {

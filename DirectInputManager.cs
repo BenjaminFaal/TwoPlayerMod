@@ -43,10 +43,10 @@ namespace Benjamin94
             public DirectInputManager(Joystick device)
             {
                 this.device = device;
-                //     if (device!=null)
-                //     {
-                //          device.Acquire();
-                //     }
+                if (device != null)
+                {
+                    device.Acquire();
+                }
                 config = new List<Tuple<int, DeviceButton>>(); // for digital dpads
 
                 DeviceState state = GetState();
@@ -254,50 +254,54 @@ namespace Benjamin94
 
             public override DeviceState GetState()
             {
-                try
+                //try
+                // {
+                device.Poll();
+                JoystickState state = device.GetCurrentState();
+
+                DeviceState devState = new DeviceState();
+
+                bool[] buttons = state.Buttons;
+
+                for (int i = 0; i < buttons.Length; i++)
                 {
-                    device.Poll();
-                    JoystickState state = device.GetCurrentState();
-
-                    DeviceState devState = new DeviceState();
-
-                    bool[] buttons = state.Buttons;
-
-                    for (int i = 0; i < buttons.Length; i++)
+                    if (buttons[i])
                     {
-                        if (buttons[i])
-                        {
-                            devState.Buttons.Add(config.FirstOrDefault(item => item.Item1 == i + 1).Item2);
-                        }
-                    }
-
-                    // for ps4 controllers or devices with dpads that are not recognized as buttons
-                    foreach (int pov in state.PointOfViewControllers)
-                    {
-                        Tuple<int, DeviceButton> tuple = config.FirstOrDefault(item => item.Item1 == pov);
+                        Tuple<int, DeviceButton> tuple = config.FirstOrDefault(item => item.Item1 == i + 1);
                         if (tuple != null)
                         {
                             devState.Buttons.Add(tuple.Item2);
                         }
                     }
-
-                    devState.LeftThumbStick = NormalizeThumbStick(state.X, state.Y);
-                    devState.RightThumbStick = NormalizeThumbStick(state.Z, state.RotationZ);
-
-                    return devState;
                 }
-                catch (Exception)
+
+                // for ps4 controllers or devices with dpads that are not recognized as buttons
+                foreach (int pov in state.PointOfViewControllers)
                 {
-                    // most of times this exception occurs when its disconnected unexpectedly 
-                    // by calling Acquire() it will always be reconnected as soon as the controller is plugged in again
-                    try
+                    Tuple<int, DeviceButton> tuple = config.FirstOrDefault(item => item.Item1 == pov);
+                    if (tuple != null)
                     {
-                        device.Acquire();
-                    }
-                    catch (Exception)
-                    {
+                        devState.Buttons.Add(tuple.Item2);
                     }
                 }
+
+                devState.LeftThumbStick = NormalizeThumbStick(state.X, state.Y);
+                devState.RightThumbStick = NormalizeThumbStick(state.Z, state.RotationZ);
+
+                return devState;
+                //  }
+                // catch (Exception e)
+                //   {
+                // most of times this exception occurs when its disconnected unexpectedly 
+                // by calling Acquire() it will always be reconnected as soon as the controller is plugged in again
+                //        try
+                //       {
+                //           device.Acquire();
+                //      }
+                //     catch (Exception)
+                //      {
+                //      }
+                //   }
                 return null;
             }
 

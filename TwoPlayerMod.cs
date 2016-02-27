@@ -237,7 +237,7 @@ public class TwoPlayerMod : Script
             PedHash selectedHash = Enum.Parse(typeof(PedHash), s.IndexToItem(s.Index));
             characterHash = selectedHash;
             settings.SetValue(Name, CharacterHashKey, selectedHash.ToString());
-            settings.Save();
+            settings.Save();  
         };
 
         menu.AddItem(characterItem);
@@ -507,14 +507,23 @@ public class TwoPlayerMod : Script
             input.Cleanup();
             input = null;
         }
+        CleanUpPlayer2();
+        if (player1 != null)
+        {
+            player1.IsInvincible = false;
+        }
+    }
+
+
+    /// <summary>
+    /// Cleans up player 2
+    /// </summary>
+    private void CleanUpPlayer2()
+    {
         if (player2 != null)
         {
             player2.Delete();
             player2 = null;
-        }
-        if (player1 != null)
-        {
-            player1.IsInvincible = false;
         }
     }
 

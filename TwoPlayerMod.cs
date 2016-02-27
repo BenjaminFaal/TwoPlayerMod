@@ -242,7 +242,7 @@ public class TwoPlayerMod : Script
 
         menu.AddItem(characterItem);
 
-        UIMenuItem cameraZoomItem = new UIMenuItem("Custom camera zoom " + CameraZoom, "Sets the custom camera zoom, from 7.5 to 20");
+        UIMenuItem cameraZoomItem = new UIMenuItem("Custom camera zoom " + CameraZoom, "Sets the custom camera zoom, from " + DefaultCameraZoom + " to 20");
         cameraZoomItem.Enabled = customCamera;
         cameraZoomItem.Activated += (s, i) =>
         {

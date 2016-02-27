@@ -237,7 +237,7 @@ public class TwoPlayerMod : Script
             PedHash selectedHash = Enum.Parse(typeof(PedHash), s.IndexToItem(s.Index));
             characterHash = selectedHash;
             settings.SetValue(Name, CharacterHashKey, selectedHash.ToString());
-            settings.Save();  
+            settings.Save();
         };
 
         menu.AddItem(characterItem);
@@ -873,7 +873,6 @@ public class TwoPlayerMod : Script
             if (!target.IsAlive)
             {
                 targets = GetTargets();
-                //    return;
             }
 
             if (target != null)
@@ -884,7 +883,14 @@ public class TwoPlayerMod : Script
                 {
                     if (CanDoAction(Player2Action.Shoot, 750))
                     {
-                        player2.Task.ShootAt(target, 750, FiringPattern.FullAuto);
+                        if (player2.IsInVehicle())
+                        {
+                            Function.Call(Hash.TASK_DRIVE_BY, player2, target, 0, 0, 0, 0, 50.0f, 100, 1, (uint)FiringPattern.FullAuto);
+                        }
+                        else
+                        {
+                            player2.Task.ShootAt(target, 750, FiringPattern.FullAuto);
+                        }
                         UpdateLastAction(Player2Action.Shoot);
                     }
                 }

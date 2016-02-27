@@ -80,25 +80,4 @@
     <None Include="TwoPlayerMod.ini" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <!--
-    <PostBuildEvent>COPY "$(TargetDir)$(TargetFileName)" "C:\Program Files (x86)\Steam\steamapps\common\Grand Theft Auto V\scripts"
-COPY "$(TargetDir)\$(TargetName).pdb" "C:\Program Files (x86)\Steam\steamapps\common\Grand Theft Auto V\scripts"
-C:\Users\Benjamin\Desktop\gtav.ahk</PostBuildEvent>
- -->
-  </PropertyGroup>
-  <PropertyGroup>
-  </PropertyGroup>
-  <PropertyGroup>
-    <PostBuildEvent>COPY "$(TargetDir)$(TargetFileName)" "C:\Program Files (x86)\Steam\steamapps\common\Grand Theft Auto V\scripts"
-COPY "$(TargetDir)$(TargetName)" "C:\Program Files (x86)\Steam\steamapps\common\Grand Theft Auto V\scripts"
-C:\Users\Benjamin\Desktop\gtav.ahk</PostBuildEvent>
-  </PropertyGroup>
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
 </Project>

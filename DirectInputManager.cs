@@ -254,54 +254,54 @@ namespace Benjamin94
 
             public override DeviceState GetState()
             {
-                //try
-                // {
-                device.Poll();
-                JoystickState state = device.GetCurrentState();
-
-                DeviceState devState = new DeviceState();
-
-                bool[] buttons = state.Buttons;
-
-                for (int i = 0; i < buttons.Length; i++)
+                try
                 {
-                    if (buttons[i])
+                    device.Poll();
+                    JoystickState state = device.GetCurrentState();
+
+                    DeviceState devState = new DeviceState();
+
+                    bool[] buttons = state.Buttons;
+
+                    for (int i = 0; i < buttons.Length; i++)
                     {
-                        Tuple<int, DeviceButton> tuple = config.FirstOrDefault(item => item.Item1 == i + 1);
+                        if (buttons[i])
+                        {
+                            Tuple<int, DeviceButton> tuple = config.FirstOrDefault(item => item.Item1 == i + 1);
+                            if (tuple != null)
+                            {
+                                devState.Buttons.Add(tuple.Item2);
+                            }
+                        }
+                    }
+
+                    // for ps4 controllers or devices with dpads that are not recognized as buttons
+                    foreach (int pov in state.PointOfViewControllers)
+                    {
+                        Tuple<int, DeviceButton> tuple = config.FirstOrDefault(item => item.Item1 == pov);
                         if (tuple != null)
                         {
                             devState.Buttons.Add(tuple.Item2);
                         }
                     }
-                }
 
-                // for ps4 controllers or devices with dpads that are not recognized as buttons
-                foreach (int pov in state.PointOfViewControllers)
+                    devState.LeftThumbStick = NormalizeThumbStick(state.X, state.Y);
+                    devState.RightThumbStick = NormalizeThumbStick(state.Z, state.RotationZ);
+
+                    return devState;
+                }
+                catch (Exception)
                 {
-                    Tuple<int, DeviceButton> tuple = config.FirstOrDefault(item => item.Item1 == pov);
-                    if (tuple != null)
+                    // most of times this exception occurs when its disconnected unexpectedly 
+                    // by calling Acquire() it will always be reconnected as soon as the controller is plugged in again
+                    try
                     {
-                        devState.Buttons.Add(tuple.Item2);
+                        device.Acquire();
+                    }
+                    catch (Exception)
+                    {
                     }
                 }
-
-                devState.LeftThumbStick = NormalizeThumbStick(state.X, state.Y);
-                devState.RightThumbStick = NormalizeThumbStick(state.Z, state.RotationZ);
-
-                return devState;
-                //  }
-                // catch (Exception e)
-                //   {
-                // most of times this exception occurs when its disconnected unexpectedly 
-                // by calling Acquire() it will always be reconnected as soon as the controller is plugged in again
-                //        try
-                //       {
-                //           device.Acquire();
-                //      }
-                //     catch (Exception)
-                //      {
-                //      }
-                //   }
                 return null;
             }
 

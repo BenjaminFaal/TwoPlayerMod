@@ -23,7 +23,8 @@ public class TwoPlayerMod : Script
     private const string CharacterHashKey = "CharacterHash";
     public const string ControllerKey = "Controller";
     private const string CustomCameraKey = "CustomCamera";
-    private const string CustomCameraZoomKey = "CustomCameraZoom";
+    private const string PlayerTwoBlipSpriteKey = "PlayerTwoBlipSprite";
+    private const string PlayerTwoBlipColorKey = "PlayerTwoBlipColor";
 
     // Player 1
     private Player player;
@@ -32,7 +33,10 @@ public class TwoPlayerMod : Script
     // Player 2 
     private Ped player2;
     private WeaponHash[] weapons = (WeaponHash[])Enum.GetValues(typeof(WeaponHash));
+    private WeaponHash[] meleeWeapons = new WeaponHash[] { WeaponHash.PetrolCan, WeaponHash.Knife, WeaponHash.Nightstick, WeaponHash.Hammer, WeaponHash.Bat, WeaponHash.GolfClub, WeaponHash.Crowbar, WeaponHash.Bottle, WeaponHash.SwitchBlade, WeaponHash.Dagger, WeaponHash.Hatchet, WeaponHash.Unarmed, WeaponHash.KnuckleDuster, WeaponHash.Machete, WeaponHash.Flashlight };
+    private WeaponHash[] throwables = new WeaponHash[] { WeaponHash.StickyBomb, WeaponHash.Snowball, WeaponHash.SmokeGrenade, WeaponHash.ProximityMine, WeaponHash.Molotov, WeaponHash.Grenade, WeaponHash.Flare, WeaponHash.BZGas, WeaponHash.Ball };
     private int weaponIndex = 0;
+
     private int WeaponIndex
     {
         get
@@ -52,6 +56,8 @@ public class TwoPlayerMod : Script
             weaponIndex = value;
         }
     }
+    private BlipSprite p2BlipSprite = BlipSprite.Standard;
+    private BlipColor p2BlipColor = BlipColor.Green;
 
     private Ped[] targets = null;
     private int targetIndex = 0;
@@ -96,28 +102,6 @@ public class TwoPlayerMod : Script
     // camera
     private bool customCamera = false;
     private Camera camera;
-    private const int DefaultCameraZoom = 7;
-    private int cameraZoom = DefaultCameraZoom;
-    private int CameraZoom
-    {
-        get
-        {
-            return cameraZoom;
-        }
-        set
-        {
-            cameraZoom = value;
-
-            if (cameraZoom <= DefaultCameraZoom)
-            {
-                cameraZoom = DefaultCameraZoom;
-            }
-            if (cameraZoom > 20)
-            {
-                cameraZoom = DefaultCameraZoom;
-            }
-        }
-    }
 
     public TwoPlayerMod()
     {
@@ -174,14 +158,27 @@ public class TwoPlayerMod : Script
 
         try
         {
-            CameraZoom = int.Parse(settings.GetValue(Name, CustomCameraZoomKey, DefaultCameraZoom.ToString()));
+            p2BlipSprite = settings.GetValue(Name, PlayerTwoBlipSpriteKey, p2BlipSprite);
         }
         catch (Exception)
         {
-            CameraZoom = DefaultCameraZoom;
-            UI.Notify("Failed to read '" + CustomCameraZoomKey + "', reverting to default " + CustomCameraZoomKey + " " + DefaultCameraZoom);
+            p2BlipSprite = BlipSprite.Standard;
+            UI.Notify("Failed to read '" + PlayerTwoBlipSpriteKey + "', reverting to default " + PlayerTwoBlipSpriteKey + " Standard");
 
-            settings.SetValue(Name, CustomCameraZoomKey, DefaultCameraZoom);
+            settings.SetValue(Name, PlayerTwoBlipSpriteKey, p2BlipSprite);
+            settings.Save();
+        }
+
+        try
+        {
+            p2BlipColor = settings.GetValue(Name, PlayerTwoBlipColorKey, p2BlipColor);
+        }
+        catch (Exception)
+        {
+            p2BlipColor = BlipColor.Green;
+            UI.Notify("Failed to read '" + PlayerTwoBlipColorKey + "', reverting to default " + PlayerTwoBlipColorKey + " Green");
+
+            settings.SetValue(Name, PlayerTwoBlipColorKey, p2BlipColor);
             settings.Save();
         }
     }
@@ -242,52 +239,56 @@ public class TwoPlayerMod : Script
 
         menu.AddItem(characterItem);
 
-        UIMenuItem cameraZoomItem = new UIMenuItem("Custom camera zoom " + CameraZoom, "Sets the custom camera zoom, from " + DefaultCameraZoom + " to 20");
-        cameraZoomItem.Enabled = customCamera;
-        cameraZoomItem.Activated += (s, i) =>
+        List<dynamic> sprites = new List<dynamic>();
+
+        foreach (BlipSprite sprite in Enum.GetValues(typeof(BlipSprite)))
         {
-            if (Enabled() && customCamera)
-            {
-                while (!Game.IsKeyPressed(Keys.Space))
-                {
-                    UI.ShowSubtitle("Camera zoom ~g~(" + CameraZoom + ")~w~, press ~g~Plus~w~ or ~g~Min~w~ to change. Press ~g~" + Keys.Space + " ~w~to confirm.");
-                    if (Game.IsKeyPressed(Keys.Subtract))
-                    {
-                        CameraZoom--;
-                        Wait(250);
-                    }
-                    if (Game.IsKeyPressed(Keys.Add))
-                    {
-                        CameraZoom++;
-                        Wait(250);
-                    }
+            sprites.Add(sprite.ToString());
+        }
 
-                    UpdateCamera();
-                    Yield();
-                }
+        sprites.Sort();
 
-                UI.ShowSubtitle(string.Empty);
-                settings.SetValue(Name, CustomCameraZoomKey, CameraZoom);
-                settings.Save();
-            }
-            else
-            {
-                UI.Notify("Please enable the mod and custom camera first before setting a zoom level.");
-            }
+        UIMenuListItem spriteItem = new UIMenuListItem("Character blip sprite", sprites, 0, "Select a blip sprite for player 2.");
+
+        spriteItem.OnListChanged += (s, i) =>
+        {
+            BlipSprite selectedSprite = Enum.Parse(typeof(BlipSprite), s.IndexToItem(s.Index));
+            p2BlipSprite = selectedSprite;
+            settings.SetValue(Name, PlayerTwoBlipSpriteKey, selectedSprite.ToString());
+            settings.Save();
         };
 
-        UIMenuCheckboxItem cameraItem = new UIMenuCheckboxItem("Toggle custom camera", customCamera, "This enables/disables the custom camera");
+        menu.AddItem(spriteItem);
+
+        List<dynamic> colors = new List<dynamic>();
+
+        foreach (BlipColor sprite in Enum.GetValues(typeof(BlipColor)))
+        {
+            colors.Add(sprite.ToString());
+        }
+
+        sprites.Sort();
+
+        UIMenuListItem colorItem = new UIMenuListItem("Character blip color", colors, 0, "Select a blip color for player 2.");
+
+        colorItem.OnListChanged += (s, i) =>
+        {
+            BlipColor selectedColor = Enum.Parse(typeof(BlipColor), s.IndexToItem(s.Index));
+            p2BlipColor = selectedColor;
+            settings.SetValue(Name, PlayerTwoBlipColorKey, selectedColor.ToString());
+            settings.Save();
+        };
+
+        menu.AddItem(colorItem);
+
+        UIMenuCheckboxItem cameraItem = new UIMenuCheckboxItem("Toggle GTA:SA camera", customCamera, "This enables/disables the GTA:SA style camera");
         cameraItem.CheckboxEvent += (s, i) =>
         {
             customCamera = !customCamera;
-            cameraZoomItem.Enabled = customCamera;
             settings.SetValue(Name, CustomCameraKey, customCamera.ToString());
             settings.Save();
         };
         menu.AddItem(cameraItem);
-
-
-        menu.AddItem(cameraZoomItem);
 
         bool controllersAvailable = DirectInputManager.GetDevices().Count > 0 || XInputManager.GetDevices().Count > 0;
 
@@ -374,8 +375,16 @@ public class TwoPlayerMod : Script
         player = Game.Player;
         player1 = player.Character;
         player1.IsInvincible = true;
+        player1.Task.ClearAll();
 
         player2 = World.CreatePed(characterHash, player1.GetOffsetInWorldCoords(new Vector3(0, 5, 0)));
+
+        while (!player2.Exists())
+        {
+            UI.ShowSubtitle("Setting up Player 2");
+            Wait(100);
+        }
+
         player2.IsEnemy = false;
         player2.IsInvincible = true;
         player2.DropsWeaponsOnDeath = false;
@@ -400,8 +409,8 @@ public class TwoPlayerMod : Script
 
         player2.NeverLeavesGroup = true;
         player2.RelationshipGroup = player1.RelationshipGroup;
-        player2.AddBlip().Sprite = BlipSprite.Standard;
-        player2.CurrentBlip.Color = BlipColor.Green;
+        player2.AddBlip().Sprite = p2BlipSprite;
+        player2.CurrentBlip.Color = p2BlipColor;
 
         if (player1.IsInVehicle())
         {
@@ -415,7 +424,8 @@ public class TwoPlayerMod : Script
                 player2.SetIntoVehicle(v, VehicleSeat.Driver);
             }
         }
-        camera = World.CreateCamera(player2.GetOffsetInWorldCoords(new Vector3(0, 10, 10)), Vector3.Zero, GameplayCamera.FieldOfView);
+
+        SetupCamera();
 
         lastActions.Clear();
         foreach (Player2Action action in Enum.GetValues(typeof(Player2Action)))
@@ -423,6 +433,14 @@ public class TwoPlayerMod : Script
             lastActions.Add(action, Game.GameTime);
         }
         targets = GetTargets();
+    }
+
+    /// <summary>
+    /// This method will setup the camera system
+    /// </summary>
+    private void SetupCamera()
+    {
+        camera = World.CreateCamera(player2.GetOffsetInWorldCoords(new Vector3(0, 10, 10)), Vector3.Zero, GameplayCamera.FieldOfView);
     }
 
     /// <summary>
@@ -500,8 +518,7 @@ public class TwoPlayerMod : Script
     /// </summary>
     private void Clean()
     {
-        World.DestroyAllCameras();
-        World.RenderingCamera = null;
+        CleanCamera();
         if (input != null)
         {
             input.Cleanup();
@@ -543,6 +560,20 @@ public class TwoPlayerMod : Script
         menuPool.ProcessMenus();
         if (Enabled())
         {
+            if (!Player1Available())
+            {
+                CleanCamera();
+
+                while (!Player1Available() || Function.Call<bool>(Hash.IS_SCREEN_FADING_IN))
+                {
+                    Wait(500);
+                }
+
+                player2.Position = World.GetNextPositionOnStreet(player1.GetOffsetInWorldCoords(new Vector3(0, 5, 0)));
+
+                SetupCamera();
+            }
+
             UpdateCamera();
 
             if (player2.IsInVehicle())
@@ -645,6 +676,44 @@ public class TwoPlayerMod : Script
     }
 
     /// <summary>
+    /// Helper method to check if a WeaponHash is a throwable like Grenade or Molotov
+    /// </summary>
+    /// <param name="hash">WeaponHash to check</param>
+    /// <returns>true if the given WeaponHash  is throwable, false otherwise</returns>
+    private bool IsThrowable(WeaponHash hash)
+    {
+        return throwables.Contains(hash);
+    }
+
+    /// <summary>
+    /// Helper method to check if a WeaponHash is a melee weapon
+    /// </summary>
+    /// <param name="hash">WeaponHash to check</param>
+    /// <returns>true if the given WeaponHash  is melee, false otherwise</returns>
+    private bool IsMelee(WeaponHash hash)
+    {
+        return meleeWeapons.Contains(hash);
+    }
+
+    /// <summary>
+    /// Cleans the Camera system
+    /// </summary>
+    private void CleanCamera()
+    {
+        World.DestroyAllCameras();
+        World.RenderingCamera = null;
+    }
+
+    /// <summary>
+    /// Helper method to check if Player 1 is still normally available
+    /// </summary>
+    /// <returns>True when Player 1 is still normally available to play</returns>
+    private bool Player1Available()
+    {
+        return !player1.IsDead && !Function.Call<bool>(Hash.IS_PLAYER_BEING_ARRESTED, player, true) && !Function.Call<bool>(Hash.IS_PLAYER_BEING_ARRESTED, player, false) && !Function.Call<bool>(Hash.IS_SCREEN_FADING_OUT);
+    }
+
+    /// <summary>
     /// Helper method to determine if player 2 is allowed to do the given Player2Action
     /// </summary>
     /// <param name="action">Player2Action to check</param>
@@ -702,8 +771,8 @@ public class TwoPlayerMod : Script
 
             float dist = p1Pos.DistanceTo(p2Pos);
 
-            center.Y += CameraZoom;
-            center.Z += CameraZoom;
+            center.Y += 5f + (dist / 1.6f);
+            center.Z += 2f + (dist / 1.4f);
 
             camera.Position = center;
 
@@ -727,11 +796,11 @@ public class TwoPlayerMod : Script
         Direction dir = input.GetDirection(DeviceButton.LeftStick);
         if (input.isAnyPressed(DeviceButton.A, DeviceButton.RightShoulder))
         {
-            if (dir == Direction.Left || dir == Direction.BackwardLeft || dir == Direction.ForwardLeft)
+            if (input.IsDirectionLeft(dir))
             {
                 return VehicleAction.HandBrakeLeft;
             }
-            else if (dir == Direction.Right || dir == Direction.BackwardRight || dir == Direction.ForwardRight)
+            else if (input.IsDirectionRight(dir))
             {
                 return VehicleAction.HandBrakeRight;
             }
@@ -743,11 +812,11 @@ public class TwoPlayerMod : Script
 
         if (input.isPressed(DeviceButton.RightTrigger))
         {
-            if (dir == Direction.Left || dir == Direction.BackwardLeft || dir == Direction.ForwardLeft)
+            if (input.IsDirectionLeft(dir))
             {
                 return VehicleAction.GoForwardLeft;
             }
-            else if (dir == Direction.Right || dir == Direction.BackwardRight || dir == Direction.ForwardRight)
+            else if (input.IsDirectionRight(dir))
             {
                 return VehicleAction.GoForwardRight;
             }
@@ -759,11 +828,11 @@ public class TwoPlayerMod : Script
 
         if (input.isPressed(DeviceButton.LeftTrigger))
         {
-            if (dir == Direction.Left || dir == Direction.BackwardLeft || dir == Direction.ForwardLeft)
+            if (input.IsDirectionLeft(dir))
             {
                 return VehicleAction.ReverseLeft;
             }
-            if (dir == Direction.Right || dir == Direction.BackwardRight || dir == Direction.ForwardRight)
+            else if (input.IsDirectionRight(dir))
             {
                 return VehicleAction.ReverseRight;
             }
@@ -777,10 +846,11 @@ public class TwoPlayerMod : Script
         {
             return VehicleAction.SwerveRight;
         }
-        if (input.IsDirectionRight(dir))
+        else if (input.IsDirectionRight(dir))
         {
             return VehicleAction.SwerveLeft;
         }
+
         return VehicleAction.Wait;
     }
 
@@ -842,6 +912,13 @@ public class TwoPlayerMod : Script
     /// <param name="secondButton">The second (firing) button which needs to pressed before the actual shooting</param>
     private void UpdateCombat(DeviceButton firstButton, DeviceButton secondButton)
     {
+        if (input.isPressed(DeviceButton.DPadLeft))
+        {
+            foreach (WeaponHash projectile in throwables)
+            {
+                Function.Call(Hash.EXPLODE_PROJECTILES, player2, new InputArgument(projectile), true);
+            }
+        }
         if (input.isPressed(firstButton))
         {
             if (!input.isPressed(secondButton))
@@ -877,20 +954,38 @@ public class TwoPlayerMod : Script
 
             if (target != null)
             {
-                World.DrawMarker(MarkerType.HorizontalSplitArrowCircle, target.Position, GameplayCamera.Direction, GameplayCamera.Rotation, new Vector3(2.5f, 2.5f, 2.5f), Color.OrangeRed);
+                World.DrawMarker(MarkerType.UpsideDownCone, target.GetBoneCoord(Bone.SKEL_Head) + new Vector3(0, 0, 1), GameplayCamera.Direction, GameplayCamera.Rotation, new Vector3(1, 1, 1), Color.OrangeRed);
 
                 if (input.isPressed(secondButton))
                 {
-                    if (CanDoAction(Player2Action.Shoot, 750))
+                    if (IsThrowable(weapons[WeaponIndex]))
+                    {
+                        if (CanDoAction(Player2Action.ThrowTrowable, 1500))
+                        {
+                            Function.Call(Hash.TASK_THROW_PROJECTILE, player2, target.Position.X, target.Position.Y, target.Position.Z);
+                            // World.ShootBullet(player2.Position, target.Position, player2, weapons[WeaponIndex], 100);
+                            UpdateLastAction(Player2Action.ThrowTrowable);
+                        }
+                        else
+                        {
+                              SelectWeapon(player2, weapons[WeaponIndex]);
+                        }
+                    }
+                    else if (CanDoAction(Player2Action.Shoot, 750))
                     {
                         if (player2.IsInVehicle())
                         {
                             Function.Call(Hash.TASK_DRIVE_BY, player2, target, 0, 0, 0, 0, 50.0f, 100, 1, (uint)FiringPattern.FullAuto);
                         }
+                        else if (IsMelee(weapons[WeaponIndex]))
+                        {
+                            UI.ShowSubtitle("Melee weapons are not supported yet.");
+                        }
                         else
                         {
                             player2.Task.ShootAt(target, 750, FiringPattern.FullAuto);
                         }
+
                         UpdateLastAction(Player2Action.Shoot);
                     }
                 }
@@ -933,6 +1028,15 @@ public class TwoPlayerMod : Script
     private void SelectWeapon(Ped p, WeaponHash weaponHash)
     {
         WeaponIndex = Array.IndexOf(weapons, weaponHash);
+
+        if (p.IsInVehicle() && IsMelee(weaponHash))
+        {
+            while (IsMelee(weapons[WeaponIndex]))
+            {
+                WeaponIndex++;
+            }
+        }
+
         Function.Call(Hash.SET_CURRENT_PED_WEAPON, p, new InputArgument(weaponHash), true);
         UpdateLastAction(Player2Action.SelectWeapon);
     }

@@ -2,6 +2,6 @@
 {
     enum Player2Action
     {
-        SelectWeapon, SelectTarget, Shoot, Jump
+        SelectWeapon, SelectTarget, Shoot, Jump, ThrowTrowable
     }
 }

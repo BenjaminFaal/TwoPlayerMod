@@ -368,7 +368,7 @@ public class TwoPlayerMod : Script
 
         player2 = World.CreatePed(characterHash, player1.GetOffsetInWorldCoords(new Vector3(0, 5, 0)));
 
-        while (!player2.Exists())
+        while (!player2.Exists() || Function.Call<bool>(Hash.IS_ENTITY_WAITING_FOR_WORLD_COLLISION, player2.Handle);
         {
             UI.ShowSubtitle("Setting up Player 2");
             Wait(100);
@@ -385,9 +385,16 @@ public class TwoPlayerMod : Script
 
         foreach (WeaponHash hash in Enum.GetValues(typeof(WeaponHash)))
         {
-            Weapon weapon = player2.Weapons.Give(hash, int.MaxValue, true, true);
-            weapon.InfiniteAmmo = true;
-            weapon.InfiniteAmmoClip = true;
+            try
+            {
+                Weapon weapon = player2.Weapons.Give(hash, int.MaxValue, true, true);
+                weapon.InfiniteAmmo = true;
+                weapon.InfiniteAmmoClip = true;
+            }
+            catch (Exception)
+            {
+                UI.Notify("Failed to give weapon: " + hash + " to player 2!");
+            }
         }
 
         SelectWeapon(player2, WeaponHash.SMG);

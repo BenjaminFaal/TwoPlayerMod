@@ -883,7 +883,7 @@ public class TwoPlayerMod : Script
 
         if (input.isPressed(DeviceButton.X) && CanDoAction(Player2Action.Jump, 850))
         {
-            player2.Task.Jump();
+            player2.Task.Climb();
             UpdateLastAction(Player2Action.Jump);
         }
 

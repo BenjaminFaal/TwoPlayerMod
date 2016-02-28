@@ -214,20 +214,9 @@ public class TwoPlayerMod : Script
 
         hashes.Sort();
 
-        int index = 0;
-
-        foreach (string item in hashes)
-        {
-            if (item.Equals(characterHash.ToString()))
-            {
-                index = hashes.IndexOf(item);
-                break;
-            }
-        }
-
         ScriptSettings settings = ScriptSettings.Load(GetIniFile());
 
-        UIMenuListItem characterItem = new UIMenuListItem("Character", hashes, index, "Select a character for player 2.");
+        UIMenuListItem characterItem = new UIMenuListItem("Character", hashes, hashes.IndexOf(characterHash.ToString()), "Select a character for player 2.");
 
         characterItem.OnListChanged += (s, i) =>
         {
@@ -248,7 +237,7 @@ public class TwoPlayerMod : Script
 
         sprites.Sort();
 
-        UIMenuListItem spriteItem = new UIMenuListItem("Character blip sprite", sprites, 0, "Select a blip sprite for player 2.");
+        UIMenuListItem spriteItem = new UIMenuListItem("Character blip sprite", sprites, sprites.IndexOf(p2BlipSprite.ToString()), "Select a blip sprite for player 2.");
 
         spriteItem.OnListChanged += (s, i) =>
         {
@@ -267,9 +256,9 @@ public class TwoPlayerMod : Script
             colors.Add(sprite.ToString());
         }
 
-        sprites.Sort();
+        colors.Sort();
 
-        UIMenuListItem colorItem = new UIMenuListItem("Character blip color", colors, 0, "Select a blip color for player 2.");
+        UIMenuListItem colorItem = new UIMenuListItem("Character blip color", colors, colors.IndexOf(p2BlipColor.ToString()), "Select a blip color for player 2.");
 
         colorItem.OnListChanged += (s, i) =>
         {

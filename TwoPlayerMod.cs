@@ -368,7 +368,7 @@ public class TwoPlayerMod : Script
 
         player2 = World.CreatePed(characterHash, player1.GetOffsetInWorldCoords(new Vector3(0, 5, 0)));
 
-        while (!player2.Exists() || Function.Call<bool>(Hash.IS_ENTITY_WAITING_FOR_WORLD_COLLISION, player2.Handle);
+        while (!player2.Exists())
         {
             UI.ShowSubtitle("Setting up Player 2");
             Wait(100);
@@ -964,7 +964,7 @@ public class TwoPlayerMod : Script
                         }
                         else
                         {
-                              SelectWeapon(player2, weapons[WeaponIndex]);
+                            SelectWeapon(player2, weapons[WeaponIndex]);
                         }
                     }
                     else if (CanDoAction(Player2Action.Shoot, 750))

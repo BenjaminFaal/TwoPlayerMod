@@ -92,6 +92,12 @@ public class TwoPlayerMod : Script
     private UIMenu menu;
     private MenuPool menuPool;
 
+    // Controllers menu
+    private UIMenu controllersMenu;
+    private UIMenuItem controllersMenuItem;
+    private bool controllerConnected = false;
+    private const string controllersMenuDescConfig = "Configure controllers, yellow star means the controller is configured successfully and is the default controller", controllersMenuDescNoControllers = "No controllers detected. Press \"Refresh controllers\" if there really is a controller connected";
+
     // Settings
     private Keys toggleMenuKey = Keys.F11;
     private PedHash characterHash = PedHash.Trevor;
@@ -193,6 +199,48 @@ public class TwoPlayerMod : Script
     }
 
     /// <summary>
+    /// Gets all of the connected controllers and adds them to the controller menu
+    /// </summary>
+    private void GetControllers()
+    {
+        controllerConnected = DirectInputManager.GetDevices().Count > 0 || XInputManager.GetDevices().Count > 0;
+
+        foreach (Joystick stick in DirectInputManager.GetDevices())
+        {
+            UIMenuItem stickItem = new UIMenuItem(stick.Information.ProductName, "Configure " + stick.Information.ProductName);
+
+            bool def = DirectInputManager.IsDefault(stick, GetIniFile(), Name);
+
+            if (def)
+            {
+                stickItem.SetLeftBadge(UIMenuItem.BadgeStyle.Star);
+            }
+
+            controllersMenu.AddItem(stickItem);
+            stickItem.Activated += (s, i) =>
+            {
+                ControllerWizard wizard = new ControllerWizard(stick);
+                bool success = wizard.StartConfiguration(GetIniFile());
+                if (success)
+                {
+                    UI.Notify("Controller successfully configured, you can now start playing");
+
+                    // if enabled the mod already then reload the InputManager so it is up to date with the new configuration
+                    if (Enabled())
+                    {
+                        input = DirectInputManager.LoadConfig(stick, GetIniFile());
+                    }
+                }
+                else
+                {
+                    UI.Notify("Controller configuration canceled, please configure your controller before playing");
+                }
+                controllersMenu.GoBack();
+            };
+        }
+    }
+
+    /// <summary>
     /// Sets up the NativeUI menu
     /// </summary>
     private void SetupMenu()
@@ -216,7 +264,7 @@ public class TwoPlayerMod : Script
 
         ScriptSettings settings = ScriptSettings.Load(GetIniFile());
 
-        UIMenuListItem characterItem = new UIMenuListItem("Character", hashes, hashes.IndexOf(characterHash.ToString()), "Select a character for player 2.");
+        UIMenuListItem characterItem = new UIMenuListItem("Character", hashes, hashes.IndexOf(characterHash.ToString()), "Select a character for player 2");
 
         characterItem.OnListChanged += (s, i) =>
         {
@@ -237,14 +285,19 @@ public class TwoPlayerMod : Script
 
         sprites.Sort();
 
-        UIMenuListItem spriteItem = new UIMenuListItem("Character blip sprite", sprites, sprites.IndexOf(p2BlipSprite.ToString()), "Select a blip sprite for player 2.");
+        UIMenuListItem spriteItem = new UIMenuListItem("Character blip sprite", sprites, sprites.IndexOf(p2BlipSprite.ToString()), "Select a blip sprite for player 2");
 
         spriteItem.OnListChanged += (s, i) =>
         {
-            BlipSprite selectedSprite = Enum.Parse(typeof(BlipSprite), s.IndexToItem(s.Index));
-            p2BlipSprite = selectedSprite;
-            settings.SetValue(Name, PlayerTwoBlipSpriteKey, selectedSprite.ToString());
+            p2BlipSprite = Enum.Parse(typeof(BlipSprite), s.IndexToItem(s.Index));
+            settings.SetValue(Name, PlayerTwoBlipSpriteKey, p2BlipSprite);
             settings.Save();
+
+            if (Enabled())
+            {
+                player2.CurrentBlip.Remove();
+                AddBlipToP2();
+            }
         };
 
         menu.AddItem(spriteItem);
@@ -258,14 +311,19 @@ public class TwoPlayerMod : Script
 
         colors.Sort();
 
-        UIMenuListItem colorItem = new UIMenuListItem("Character blip color", colors, colors.IndexOf(p2BlipColor.ToString()), "Select a blip color for player 2.");
+        UIMenuListItem colorItem = new UIMenuListItem("Character blip color", colors, colors.IndexOf(p2BlipColor.ToString()), "Select a blip color for player 2");
 
         colorItem.OnListChanged += (s, i) =>
         {
-            BlipColor selectedColor = Enum.Parse(typeof(BlipColor), s.IndexToItem(s.Index));
-            p2BlipColor = selectedColor;
-            settings.SetValue(Name, PlayerTwoBlipColorKey, selectedColor.ToString());
+            p2BlipColor = Enum.Parse(typeof(BlipColor), s.IndexToItem(s.Index));
+            settings.SetValue(Name, PlayerTwoBlipColorKey, p2BlipColor);
             settings.Save();
+
+            if (Enabled())
+            {
+                player2.CurrentBlip.Remove(); //sometimes the color changes to the selected color, other times it will change to white. 
+                AddBlipToP2(); //if you keep changing the colors (in one direction) and get back to the original item it might change, but if you go back or forward an item and then go back to the original it will not.
+            }
         };
 
         menu.AddItem(colorItem);
@@ -279,44 +337,18 @@ public class TwoPlayerMod : Script
         };
         menu.AddItem(cameraItem);
 
-        bool controllersAvailable = DirectInputManager.GetDevices().Count > 0 || XInputManager.GetDevices().Count > 0;
+        controllersMenu = menuPool.AddSubMenu(menu, "Controllers"); // fix mod not redetecting controller
+        controllersMenuItem = menu.MenuItems.Where(item => item.Text == "Controllers").FirstOrDefault();
+        GetControllers();
 
-        UIMenu controllersMenu = menuPool.AddSubMenu(menu, controllersAvailable ? "Controllers" : "No controllers found, please connect one");
-        menu.MenuItems[1].Description = "Configure controllers, yellow star means configured successfully and default controller.";
-
-        foreach (Joystick stick in DirectInputManager.GetDevices())
+        UIMenuItem refreshControllersItem = new UIMenuItem("Refresh controllers", "Get recently connected controllers");
+        refreshControllersItem.Activated += (s, i) =>
         {
-            UIMenuItem stickItem = new UIMenuItem(stick.Information.ProductName, "Configure " + stick.Information.ProductName);
+            controllersMenu.MenuItems.Clear();
+            GetControllers();
+        };
+        menu.AddItem(refreshControllersItem);
 
-            bool def = DirectInputManager.IsDefault(stick, GetIniFile(), Name);
-
-            if (def)
-            {
-                stickItem.SetLeftBadge(UIMenuItem.BadgeStyle.Star);
-            }
-
-            controllersMenu.AddItem(stickItem);
-            stickItem.Activated += (s, i) =>
-            {
-                ControllerWizard wizard = new ControllerWizard(stick);
-                bool succes = wizard.StartConfiguration(GetIniFile());
-                if (succes)
-                {
-                    UI.Notify("Controller successfully configured, you can now start playing.");
-
-                    // if enabled the mod already then reload the InputManager so it is up to date with the new configuration
-                    if (Enabled())
-                    {
-                        input = DirectInputManager.LoadConfig(stick, GetIniFile());
-                    }
-                }
-                else
-                {
-                    UI.Notify("Controller configuration canceled, please configure your controller before playing.");
-                }
-                controllersMenu.GoBack();
-            };
-        }
         menu.RefreshIndex();
     }
 
@@ -332,8 +364,6 @@ public class TwoPlayerMod : Script
     /// <summary>
     /// Gets called by NativeUI when the user selects "Toggle Mod" in the menu
     /// </summary>
-    /// <param name="sender"></param>
-    /// <param name="selectedItem"></param>
     private void ToggleMod_Activated(UIMenu sender, UIMenuItem selectedItem)
     {
         if (!Enabled())
@@ -354,6 +384,15 @@ public class TwoPlayerMod : Script
             Clean();
         }
         menu.Subtitle.Caption = Enabled() ? "~g~Enabled" : "~r~Disabled";
+    }
+
+    /// <summary>
+    /// Adds the blip to Player 2
+    /// </summary>
+    private void AddBlipToP2()
+    {
+        player2.AddBlip().Sprite = p2BlipSprite;
+        player2.CurrentBlip.Color = p2BlipColor;
     }
 
     /// <summary>
@@ -405,8 +444,7 @@ public class TwoPlayerMod : Script
 
         player2.NeverLeavesGroup = true;
         player2.RelationshipGroup = player1.RelationshipGroup;
-        player2.AddBlip().Sprite = p2BlipSprite;
-        player2.CurrentBlip.Color = p2BlipColor;
+        AddBlipToP2();
 
         if (player1.IsInVehicle())
         {
@@ -487,7 +525,6 @@ public class TwoPlayerMod : Script
     /// <summary>
     /// This method is overridden so we can cleanup the script
     /// </summary>
-    /// <param name="A_0"></param>
     protected override void Dispose(bool A_0)
     {
         Clean();
@@ -498,8 +535,6 @@ public class TwoPlayerMod : Script
     /// <summary>
     /// Toggles the menu
     /// </summary>
-    /// <param name="sender"></param>
-    /// <param name="e"></param>
     private void TwoPlayerMod_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.KeyCode == toggleMenuKey)
@@ -554,6 +589,8 @@ public class TwoPlayerMod : Script
     private void TwoPlayerMod_Tick(object sender, EventArgs e)
     {
         menuPool.ProcessMenus();
+        controllersMenuItem.Description = (controllerConnected ? controllersMenuDescConfig : controllersMenuDescNoControllers);
+
         if (Enabled())
         {
             if (!Player1Available())
@@ -1010,7 +1047,6 @@ public class TwoPlayerMod : Script
     /// Helper method to check if a Ped is a valid target for player 2
     /// </summary>
     /// <param name="target">The target Ped to check</param>
-    /// <returns></returns>
     private bool IsValidTarget(Ped target)
     {
         return target != null && target != player1 && target.IsAlive && target.IsOnScreen;

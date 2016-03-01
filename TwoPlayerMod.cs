@@ -493,6 +493,10 @@ public class TwoPlayerMod : Script
         {
             foreach (Joystick stick in DirectInputManager.GetDevices())
             {
+                if (input!= null)
+                {
+                    break;
+                }
                 try
                 {
                     if (DirectInputManager.IsConfigured(stick, GetIniFile()))
@@ -507,8 +511,9 @@ public class TwoPlayerMod : Script
                         input = DirectInputManager.LoadConfig(stick, GetIniFile());
                     }
                 }
-                catch (Exception)
+                catch (Exception ex)
                 {
+                    System.Windows.Forms.MessageBox.Show(ex.Message);
                     throw;
                 }
             }

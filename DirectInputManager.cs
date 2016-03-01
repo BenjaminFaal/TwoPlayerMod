@@ -144,7 +144,6 @@ namespace Benjamin94
                         throw new Exception("Invalid controller config, unknown " + DpadTypeKey + " reconfigure your controller from the menu.");
                     }
 
-                    // Array.Clear(manager.config, 0, manager.config.Length);
                     foreach (DeviceButton btn in Enum.GetValues(typeof(DeviceButton)))
                     {
                         int btnIndex = data.GetValue(name, btn.ToString(), -1);

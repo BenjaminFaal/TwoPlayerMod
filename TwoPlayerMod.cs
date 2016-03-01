@@ -432,7 +432,6 @@ public class TwoPlayerMod : Script
             }
             catch (Exception)
             {
-                UI.Notify("Failed to give weapon: " + hash + " to player 2!");
             }
         }
 
@@ -493,7 +492,7 @@ public class TwoPlayerMod : Script
         {
             foreach (Joystick stick in DirectInputManager.GetDevices())
             {
-                if (input!= null)
+                if (input != null)
                 {
                     break;
                 }
@@ -634,11 +633,12 @@ public class TwoPlayerMod : Script
                 {
                     if (CanDoAction(Player2Action.SelectWeapon, 500))
                     {
-                        WeaponIndex++;
-                        SelectWeapon(player2, weapons[WeaponIndex]);
+                        if (UpdateWeaponIndex())
+                        {
+                            SelectWeapon(player2, weapons[WeaponIndex]);
+                        }
                     }
-
-                    UI.ShowSubtitle("Player 2 weapon: ~g~" + weapons[WeaponIndex]);
+                    NotifyWeapon();
                 }
             }
             else
@@ -777,7 +777,7 @@ public class TwoPlayerMod : Script
     /// <returns>true if weaponIndex changed, false otherwise</returns>
     private bool UpdateWeaponIndex()
     {
-        Direction dir = input.GetDirection(DeviceButton.RightStick);
+        Direction dir = input.GetDirection(player2.IsInVehicle() ? DeviceButton.LeftStick : DeviceButton.RightStick);
 
         if (input.IsDirectionLeft(dir))
         {
@@ -804,10 +804,18 @@ public class TwoPlayerMod : Script
             Vector3 p2Pos = player2.Position;
 
             Vector3 center = CenterOfVectors(p1Pos, p2Pos);
-
             camera.PointAt(center);
 
             float dist = p1Pos.DistanceTo(p2Pos);
+
+            if (dist > 30)
+            {
+                UI.ShowSubtitle("Press backspace to teleport player 2 back to player 1.");
+                if (Game.IsKeyPressed(Keys.Back))
+                {
+                    player2.Position = player1.GetOffsetInWorldCoords(new Vector3(0, 5, 0));
+                }
+            }
 
             center.Y += 5f + (dist / 1.6f);
             center.Z += 2f + (dist / 1.4f);
@@ -832,7 +840,7 @@ public class TwoPlayerMod : Script
     private VehicleAction GetVehicleAction(Vehicle v)
     {
         Direction dir = input.GetDirection(DeviceButton.LeftStick);
-        if (input.isAnyPressed(DeviceButton.A, DeviceButton.RightShoulder))
+        if (input.isAnyPressed(DeviceButton.A))
         {
             if (input.IsDirectionLeft(dir))
             {
@@ -911,16 +919,25 @@ public class TwoPlayerMod : Script
     {
         UpdateCombat(DeviceButton.LeftTrigger, DeviceButton.RightTrigger);
 
-        Vector2 vector = input.GetState().LeftThumbStick;
-        Vector3 newPos = new Vector3(vector.X, vector.Y, 0);
-
-        if (newPos != Vector3.Zero)
+        if (customCamera)
         {
-            newPos = player2.GetOffsetInWorldCoords(newPos);
+            Vector2 leftThumb = input.GetState().LeftThumbStick;
 
-            float speed = input.isPressed(DeviceButton.A) ? 2f : 1f;
+            if (leftThumb != Vector2.Zero)
+            {
+                player2.Task.GoTo(player2.Position - new Vector3(leftThumb.X, leftThumb.Y, 0), true, -1);
+            }
+        }
+        else
+        {
+            Vector2 vector = input.GetState().LeftThumbStick;
+            Vector3 newPos = new Vector3(vector.X, vector.Y, 0);
 
-            Function.Call(Hash.TASK_GO_STRAIGHT_TO_COORD, player2.Handle, newPos.X, newPos.Y, newPos.Z, speed, 750, player2.Heading, 0);
+            if (newPos != Vector3.Zero)
+            {
+                newPos = player2.GetOffsetInWorldCoords(newPos);
+                player2.Task.GoTo(newPos, true, -1);
+            }
         }
 
         if (input.isPressed(DeviceButton.X) && CanDoAction(Player2Action.Jump, 850))
@@ -938,10 +955,17 @@ public class TwoPlayerMod : Script
                     SelectWeapon(player2, weapons[WeaponIndex]);
                 }
             }
-            UI.ShowSubtitle("Player 2 weapon: ~g~" + weapons[WeaponIndex]);
+            NotifyWeapon();
         }
     }
 
+    /// <summary>
+    /// Helper method to show the current weapon and show the user what to do to change the weapon
+    /// </summary>
+    private void NotifyWeapon()
+    {
+        UI.ShowSubtitle("Player 2 weapon: ~g~" + weapons[WeaponIndex] + "~w~. Use ~g~" + (player2.IsInVehicle() ? DeviceButton.LeftStick : DeviceButton.RightStick) + "~w~ to select weapons.");
+    }
 
     /// <summary>
     /// This will fire at the targeted ped and will handle changing targets
@@ -1000,13 +1024,9 @@ public class TwoPlayerMod : Script
                     {
                         if (CanDoAction(Player2Action.ThrowTrowable, 1500))
                         {
-                            Function.Call(Hash.TASK_THROW_PROJECTILE, player2, target.Position.X, target.Position.Y, target.Position.Z);
-                            // World.ShootBullet(player2.Position, target.Position, player2, weapons[WeaponIndex], 100);
-                            UpdateLastAction(Player2Action.ThrowTrowable);
-                        }
-                        else
-                        {
                             SelectWeapon(player2, weapons[WeaponIndex]);
+                            Function.Call(Hash.TASK_THROW_PROJECTILE, player2, target.Position.X, target.Position.Y, target.Position.Z);
+                            UpdateLastAction(Player2Action.ThrowTrowable);
                         }
                     }
                     else if (CanDoAction(Player2Action.Shoot, 750))

@@ -940,25 +940,30 @@ public class TwoPlayerMod : Script
     {
         UpdateCombat(DeviceButton.LeftTrigger, DeviceButton.RightTrigger);
 
-        if (customCamera)
-        {
-            Vector2 leftThumb = input.GetState().LeftThumbStick;
+        Vector2 leftThumb = input.GetState().LeftThumbStick;
 
-            if (leftThumb != Vector2.Zero)
+        if (leftThumb != Vector2.Zero)
+        {
+            if (input.isPressed(DeviceButton.A))
             {
-                player2.Task.GoTo(player2.Position - new Vector3(leftThumb.X, leftThumb.Y, 0), true, -1);
+                // needed for running
+                leftThumb *= 10;
             }
+            Vector3 dest = Vector3.Zero;
+            if (customCamera)
+            {
+                dest = player2.Position - new Vector3(leftThumb.X, leftThumb.Y, 0);
+            }
+            else
+            {
+                dest = player2.GetOffsetInWorldCoords(new Vector3(leftThumb.X, leftThumb.Y, 0));
+            }
+
+            player2.Task.RunTo(dest, true, -1);
         }
         else
         {
-            Vector2 vector = input.GetState().LeftThumbStick;
-            Vector3 newPos = new Vector3(vector.X, vector.Y, 0);
-
-            if (newPos != Vector3.Zero)
-            {
-                newPos = player2.GetOffsetInWorldCoords(newPos);
-                player2.Task.GoTo(newPos, true, -1);
-            }
+            player2.Task.GoTo(player2.Position, true, 0);
         }
 
         if (input.isPressed(DeviceButton.X) && CanDoAction(Player2Action.Jump, 850))

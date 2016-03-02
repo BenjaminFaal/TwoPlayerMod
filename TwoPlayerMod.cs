@@ -84,7 +84,7 @@ public class TwoPlayerMod : Script
     /// <summary>
     /// This variable will hold the last VehicleAction in order to not spam the Native calls
     /// </summary>
-    private VehicleAction LastVehicleAction = VehicleAction.Wait;
+    private VehicleAction LastVehicleAction = VehicleAction.Brake;
 
     private Dictionary<Player2Action, int> lastActions = new Dictionary<Player2Action, int>();
 
@@ -337,8 +337,13 @@ public class TwoPlayerMod : Script
         };
         menu.AddItem(cameraItem);
 
-        controllersMenu = menuPool.AddSubMenu(menu, "Controllers"); // fix mod not redetecting controller
+        controllersMenu = menuPool.AddSubMenu(menu, "Controllers");
         controllersMenuItem = menu.MenuItems.Where(item => item.Text == "Controllers").FirstOrDefault();
+        controllersMenuItem.Activated += (s, i) =>
+        {
+            controllersMenu.MenuItems.Clear();
+            GetControllers();
+        };
         GetControllers();
 
         UIMenuItem refreshControllersItem = new UIMenuItem("Refresh controllers", "Get recently connected controllers");
@@ -406,7 +411,7 @@ public class TwoPlayerMod : Script
         player1.Task.ClearAll();
 
         player2 = World.CreatePed(characterHash, player1.GetOffsetInWorldCoords(new Vector3(0, 5, 0)));
-
+        
         while (!player2.Exists())
         {
             UI.ShowSubtitle("Setting up Player 2");
@@ -590,6 +595,21 @@ public class TwoPlayerMod : Script
         return (start + end) * 0.5f;
     }
 
+    /// <summary>
+    /// Makes player2 leave his vehicle normally when the vehicle is stationary/traveling slowly or jump out when not
+    /// </summary>
+    private void P2LeaveVehicle(Vehicle v)
+    {
+        if (v.Speed > 7f)
+        {
+            Function.Call(Hash.TASK_LEAVE_VEHICLE, player2, v, 4160); //4160 = ped is throwing himself out, even when the vehicle is still (that's what the speed check is for)
+        }
+        else
+        {
+            player2.Task.LeaveVehicle();
+        }
+    }
+
     private void TwoPlayerMod_Tick(object sender, EventArgs e)
     {
         menuPool.ProcessMenus();
@@ -624,8 +644,9 @@ public class TwoPlayerMod : Script
                     VehicleAction action = GetVehicleAction(v);
                     if (action != LastVehicleAction)
                     {
-                        PerformVehicleAction(player2, v, action);
                         LastVehicleAction = action;
+                        
+                        PerformVehicleAction(player2, v, action);
                     }
                 }
 
@@ -651,7 +672,7 @@ public class TwoPlayerMod : Script
             {
                 if (player2.IsInVehicle())
                 {
-                    player2.Task.LeaveVehicle();
+                    P2LeaveVehicle(player2.CurrentVehicle);
                 }
                 else
                 {
@@ -840,7 +861,7 @@ public class TwoPlayerMod : Script
     private VehicleAction GetVehicleAction(Vehicle v)
     {
         Direction dir = input.GetDirection(DeviceButton.LeftStick);
-        if (input.isAnyPressed(DeviceButton.A))
+        if (input.isPressed(DeviceButton.A))
         {
             if (input.IsDirectionLeft(dir))
             {
@@ -868,7 +889,7 @@ public class TwoPlayerMod : Script
             }
             else
             {
-                return VehicleAction.RevEngineFast;
+                return VehicleAction.GoForwardStraightFast;
             }
         }
 
@@ -890,14 +911,14 @@ public class TwoPlayerMod : Script
 
         if (input.IsDirectionLeft(dir))
         {
-            return VehicleAction.SwerveRight;
+            return VehicleAction.SwerveLeft;
         }
         else if (input.IsDirectionRight(dir))
         {
-            return VehicleAction.SwerveLeft;
+            return VehicleAction.SwerveRight;
         }
 
-        return VehicleAction.Wait;
+        return VehicleAction.RevEngine;
     }
 
 

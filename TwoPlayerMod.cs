@@ -1105,17 +1105,16 @@ public class TwoPlayerMod : Script
 
                 if (secondButton.Invoke())
                 {
-                    //   if (IsThrowable(weapons[WeaponIndex]))
-                    //     {
-                    //         if (CanDoAction(Player2Action.ThrowTrowable, 1500))
-                    //         {
-                    //              SelectWeapon(player, weapons[WeaponIndex]);
-                    //              Function.Call(Hash.TASK_THROW_PROJECTILE, player, target.Position.X, target.Position.Y, target.Position.Z);
-                    //              UpdateLastAction(Player2Action.ThrowTrowable);
-                    //          }
-                    //      }
-                    // else
-                    if (CanDoAction(Player2Action.Shoot, 750))
+                    if (IsThrowable(weapons[WeaponIndex]))
+                    {
+                        if (CanDoAction(Player2Action.ThrowTrowable, 1500))
+                        {
+                            SelectWeapon(player, weapons[WeaponIndex]);
+                            Function.Call(Hash.TASK_THROW_PROJECTILE, player, target.Position.X, target.Position.Y, target.Position.Z);
+                            UpdateLastAction(Player2Action.ThrowTrowable);
+                        }
+                    }
+                    else if (CanDoAction(Player2Action.Shoot, 750))
                     {
                         if (player.IsInVehicle())
                         {
@@ -1125,7 +1124,7 @@ public class TwoPlayerMod : Script
                         {
                             SelectWeapon(player, weapons[weaponIndex]);
                             player.Task.ShootAt(target, 750, FiringPattern.FullAuto);
-                            //  UI.ShowSubtitle("Melee weapons are not supported yet.");
+                            UI.ShowSubtitle("Melee weapons are not supported yet.");
                         }
                         else
                         {

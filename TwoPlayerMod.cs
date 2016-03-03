@@ -455,22 +455,20 @@ public class TwoPlayerMod : Script
             Vehicle v = player1.CurrentVehicle;
             if (v.GetPedOnSeat(VehicleSeat.Driver) == player1)
             {
-                player2.SetIntoVehicle(v, VehicleSeat.Passenger);
+                player2.Task.WarpIntoVehicle(v, VehicleSeat.Passenger);
             }
             else
             {
-                player2.SetIntoVehicle(v, VehicleSeat.Driver);
+                player2.Task.WarpIntoVehicle(v, VehicleSeat.Driver);
             }
         }
 
         SetupCamera();
 
-        lastActions.Clear();
         foreach (Player2Action action in Enum.GetValues(typeof(Player2Action)))
         {
-            lastActions.Add(action, Game.GameTime);
+            lastActions[action] = Game.GameTime;
         }
-        targets = GetTargets();
     }
 
     /// <summary>
@@ -634,7 +632,7 @@ public class TwoPlayerMod : Script
 
             if (player2.IsInVehicle())
             {
-                UpdateCombat(DeviceButton.LeftShoulder, DeviceButton.RightShoulder);
+                UpdateCombat(player2, player1, () => { return input.isPressed(DeviceButton.LeftShoulder); }, () => { return input.isPressed(DeviceButton.RightShoulder); });
 
                 Vehicle v = player2.CurrentVehicle;
 
@@ -677,7 +675,7 @@ public class TwoPlayerMod : Script
                 {
                     Vehicle v = World.GetClosestVehicle(player2.Position, 15);
                     if (v != null && v == player1.CurrentVehicle)
-                    {                        
+                    {
                         if (v.GetPedOnSeat(VehicleSeat.Passenger) == player1)
                         {
                             player2.Task.EnterVehicle(v, VehicleSeat.Driver);
@@ -947,7 +945,7 @@ public class TwoPlayerMod : Script
     /// </summary>
     private void UpdateFoot()
     {
-        UpdateCombat(DeviceButton.LeftTrigger, DeviceButton.RightTrigger);
+        UpdateCombat(player2, player1, () => { return input.isPressed(DeviceButton.LeftTrigger); }, () => { return input.isPressed(DeviceButton.RightTrigger); });
 
         Vector2 leftThumb = input.GetState().LeftThumbStick;
 
@@ -1005,22 +1003,26 @@ public class TwoPlayerMod : Script
     /// <summary>
     /// This will fire at the targeted ped and will handle changing targets
     /// </summary>
+    /// <param name="player">The player for which to update the combat mechanism</param>
+    /// <param name="exclude">The player which should be ignored</param>
     /// <param name="firstButton">The first (aiming) button which needs to pressed before handling this update</param>
     /// <param name="secondButton">The second (firing) button which needs to pressed before the actual shooting</param>
-    private void UpdateCombat(DeviceButton firstButton, DeviceButton secondButton)
+    private void UpdateCombat(Ped player, Ped exclude, Func<bool> firstButton, Func<bool> secondButton)
     {
         if (input.isPressed(DeviceButton.DPadLeft))
         {
             foreach (WeaponHash projectile in throwables)
             {
-                Function.Call(Hash.EXPLODE_PROJECTILES, player2, new InputArgument(projectile), true);
+                Function.Call(Hash.EXPLODE_PROJECTILES, player, new InputArgument(projectile), true);
             }
         }
-        if (input.isPressed(firstButton))
+        if (firstButton.Invoke())
         {
-            if (!input.isPressed(secondButton))
+            UI.ShowSubtitle("updating combat for: " + player.IsPlayer);
+
+            if (!secondButton.Invoke())
             {
-                targets = GetTargets();
+                targets = GetTargets(player, exclude);
             }
             if (CanDoAction(Player2Action.SelectTarget, 500))
             {
@@ -1046,37 +1048,43 @@ public class TwoPlayerMod : Script
 
             if (!target.IsAlive)
             {
-                targets = GetTargets();
+                targets = GetTargets(player, exclude);
             }
 
             if (target != null)
             {
                 World.DrawMarker(MarkerType.UpsideDownCone, target.GetBoneCoord(Bone.SKEL_Head) + new Vector3(0, 0, 1), GameplayCamera.Direction, GameplayCamera.Rotation, new Vector3(1, 1, 1), Color.OrangeRed);
 
-                if (input.isPressed(secondButton))
+                if (secondButton.Invoke())
                 {
+                    if (player == player2)
+                    {
+                        player.Task.ClearAll();
+                    }
                     if (IsThrowable(weapons[WeaponIndex]))
                     {
                         if (CanDoAction(Player2Action.ThrowTrowable, 1500))
                         {
-                            SelectWeapon(player2, weapons[WeaponIndex]);
-                            Function.Call(Hash.TASK_THROW_PROJECTILE, player2, target.Position.X, target.Position.Y, target.Position.Z);
+                            SelectWeapon(player, weapons[WeaponIndex]);
+                            Function.Call(Hash.TASK_THROW_PROJECTILE, player, target.Position.X, target.Position.Y, target.Position.Z);
                             UpdateLastAction(Player2Action.ThrowTrowable);
                         }
                     }
                     else if (CanDoAction(Player2Action.Shoot, 750))
                     {
-                        if (player2.IsInVehicle())
+                        if (player.IsInVehicle())
                         {
-                            Function.Call(Hash.TASK_DRIVE_BY, player2, target, 0, 0, 0, 0, 50.0f, 100, 1, (uint)FiringPattern.FullAuto);
+                            Function.Call(Hash.TASK_DRIVE_BY, player, target, 0, 0, 0, 0, 50.0f, 100, 1, (uint)FiringPattern.FullAuto);
                         }
                         else if (IsMelee(weapons[WeaponIndex]))
                         {
-                            UI.ShowSubtitle("Melee weapons are not supported yet.");
+                            SelectWeapon(player, weapons[weaponIndex]);
+                            player.Task.ShootAt(target, 750, FiringPattern.FullAuto);
+                            //  UI.ShowSubtitle("Melee weapons are not supported yet.");
                         }
                         else
                         {
-                            player2.Task.ShootAt(target, 750, FiringPattern.FullAuto);
+                            player.Task.ShootAt(target, 750, FiringPattern.FullAuto);
                         }
 
                         UpdateLastAction(Player2Action.Shoot);
@@ -1084,7 +1092,7 @@ public class TwoPlayerMod : Script
                 }
                 else
                 {
-                    player2.Task.AimAt(target, 100);
+                    player.Task.AimAt(target, 100);
                 }
             }
         }
@@ -1095,21 +1103,23 @@ public class TwoPlayerMod : Script
     }
 
     /// <summary>
-    /// Gets targets for player 2 in combat situations
+    /// Gets targets for the given player in combat situations
     /// </summary>
+    /// <param name="player">The player which should not be included in the targets array</param>
+    /// <param name="exclude">The player which is the other player</param>
     /// <returns>An array of Peds</returns>
-    private Ped[] GetTargets()
+    private Ped[] GetTargets(Ped player, Ped exclude)
     {
-        return World.GetNearbyPeds(player2, 50).Where(ped => IsValidTarget(ped)).OrderBy(ped => ped.Position.DistanceTo(player2.Position)).ToArray();
+        return World.GetNearbyPeds(player, 50).Where(ped => IsValidTarget(ped, exclude)).OrderBy(ped => ped.Position.DistanceTo(player2.Position)).ToArray();
     }
 
     /// <summary>
     /// Helper method to check if a Ped is a valid target for player 2
     /// </summary>
     /// <param name="target">The target Ped to check</param>
-    private bool IsValidTarget(Ped target)
+    private bool IsValidTarget(Ped target, Ped exclude)
     {
-        return target != null && target != player1 && target.IsAlive && target.IsOnScreen;
+        return target != null && target != exclude && target.IsAlive && target.IsOnScreen;
     }
 
     /// <summary>

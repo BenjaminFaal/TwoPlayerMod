@@ -469,6 +469,8 @@ public class TwoPlayerMod : Script
         {
             lastActions[action] = Game.GameTime;
         }
+
+        Function.Call(Hash.LOCK_MINIMAP_ANGLE, 0);
     }
 
     /// <summary>
@@ -555,6 +557,8 @@ public class TwoPlayerMod : Script
     /// </summary>
     private void Clean()
     {
+        Function.Call(Hash.UNLOCK_MINIMAP_ANGLE);
+
         CleanCamera();
         if (input != null)
         {
@@ -630,6 +634,51 @@ public class TwoPlayerMod : Script
 
             UpdateCamera();
 
+            if (player1.IsOnFoot && customCamera)
+            {
+                if (Game.IsControlPressed(0, GTA.Control.Jump))
+                {
+                    player1.Task.Climb();
+                }
+
+                Vector2 offset = Vector2.Zero;
+
+                if (Game.IsControlPressed(0, GTA.Control.MoveUpOnly))
+                {
+                    offset.Y++;
+                }
+
+                if (Game.IsControlPressed(0, GTA.Control.MoveLeftOnly))
+                {
+                    offset.X--;
+                }
+
+                if (Game.IsControlPressed(0, GTA.Control.MoveRightOnly))
+                {
+                    offset.X++;
+                }
+
+                if (Game.IsControlPressed(0, GTA.Control.MoveDownOnly))
+                {
+                    offset.Y--;
+                }
+                if (offset != Vector2.Zero)
+                {
+                    if (Game.IsControlPressed(0, GTA.Control.Sprint))
+                    {
+                        // needed for running
+                        offset *= 10;
+                    }
+                    Vector3 dest = Vector3.Zero;
+                    dest = player1.Position - new Vector3(offset.X, offset.Y, 0);
+                    player1.Task.RunTo(dest, true, -1);
+                }
+                else
+                {
+                    player1.Task.GoTo(player1.Position, true, 0);
+                }
+            }
+
             if (player2.IsInVehicle())
             {
                 UpdateCombat(player2, player1, () => { return input.isPressed(DeviceButton.LeftShoulder); }, () => { return input.isPressed(DeviceButton.RightShoulder); });
@@ -667,6 +716,7 @@ public class TwoPlayerMod : Script
             // for player2 entering / leaving a vehicle
             if (input.isPressed(DeviceButton.Y))
             {
+                // handle parachuting           
                 if (player2.IsInVehicle())
                 {
                     P2LeaveVehicle(player2.CurrentVehicle);
@@ -825,13 +875,18 @@ public class TwoPlayerMod : Script
     /// </summary>
     private void UpdateCamera()
     {
-        if (customCamera)
+        if (player1.IsInVehicle() && player2.IsInVehicle() && (player1.CurrentVehicle == player2.CurrentVehicle))
+        {
+            World.RenderingCamera = null;
+        }
+        else if (customCamera)
         {
             World.RenderingCamera = camera;
             Vector3 p1Pos = player1.Position;
             Vector3 p2Pos = player2.Position;
 
             Vector3 center = CenterOfVectors(p1Pos, p2Pos);
+
             camera.PointAt(center);
 
             float dist = p1Pos.DistanceTo(p2Pos);
@@ -849,11 +904,6 @@ public class TwoPlayerMod : Script
             center.Z += 2f + (dist / 1.4f);
 
             camera.Position = center;
-
-            if (player1.IsInVehicle() && player2.IsInVehicle() && (player1.CurrentVehicle == player2.CurrentVehicle))
-            {
-                World.RenderingCamera = null;
-            }
         }
         else
         {
@@ -941,7 +991,7 @@ public class TwoPlayerMod : Script
     }
 
     /// <summary>
-    /// TODO: This method needs to be made better for more natural movement.
+    /// Updates all kind of on foot actions like walking entering exiting vehicles
     /// </summary>
     private void UpdateFoot()
     {
@@ -1018,8 +1068,6 @@ public class TwoPlayerMod : Script
         }
         if (firstButton.Invoke())
         {
-            UI.ShowSubtitle("updating combat for: " + player.IsPlayer);
-
             if (!secondButton.Invoke())
             {
                 targets = GetTargets(player, exclude);
@@ -1057,20 +1105,17 @@ public class TwoPlayerMod : Script
 
                 if (secondButton.Invoke())
                 {
-                    if (player == player2)
-                    {
-                        player.Task.ClearAll();
-                    }
-                    if (IsThrowable(weapons[WeaponIndex]))
-                    {
-                        if (CanDoAction(Player2Action.ThrowTrowable, 1500))
-                        {
-                            SelectWeapon(player, weapons[WeaponIndex]);
-                            Function.Call(Hash.TASK_THROW_PROJECTILE, player, target.Position.X, target.Position.Y, target.Position.Z);
-                            UpdateLastAction(Player2Action.ThrowTrowable);
-                        }
-                    }
-                    else if (CanDoAction(Player2Action.Shoot, 750))
+                    //   if (IsThrowable(weapons[WeaponIndex]))
+                    //     {
+                    //         if (CanDoAction(Player2Action.ThrowTrowable, 1500))
+                    //         {
+                    //              SelectWeapon(player, weapons[WeaponIndex]);
+                    //              Function.Call(Hash.TASK_THROW_PROJECTILE, player, target.Position.X, target.Position.Y, target.Position.Z);
+                    //              UpdateLastAction(Player2Action.ThrowTrowable);
+                    //          }
+                    //      }
+                    // else
+                    if (CanDoAction(Player2Action.Shoot, 750))
                     {
                         if (player.IsInVehicle())
                         {

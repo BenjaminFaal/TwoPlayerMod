@@ -16,7 +16,7 @@ namespace Benjamin94.Input
         {
             this.stick = stick;
         }
-        
+
         /// <summary>
         /// Starts a wizard in which the user gets asked for all buttons one by one
         /// </summary>
@@ -88,9 +88,9 @@ namespace Benjamin94.Input
         /// <returns>DpadType enum</returns>
         private DpadType DetermineDpadType(DirectInputManager input)
         {
-            while (input.GetPressedButton() == -1 && input.GetState().Buttons.Count == 0)
+            while (input.GetPressedButton() == -1 && input.GetDpadValue() == -1)
             {
-                if (GTA.Game.IsKeyPressed(System.Windows.Forms.Keys.Escape)) return (DpadType)3;
+                if (Game.IsKeyPressed(System.Windows.Forms.Keys.Escape)) return (DpadType)3;
                 UI.ShowSubtitle("Press and hold at least one Dpad button for 1 second. Press the Esc key to cancel.", 120);
                 Script.Wait(100);
             }
@@ -99,9 +99,9 @@ namespace Benjamin94.Input
             Script.Wait(1000);
 
             int button = input.GetPressedButton();
-            List<DeviceButton> buttons = input.GetState().Buttons;
+            int digitalDpadvalue = input.GetDpadValue();
 
-            if (button == -1 && buttons.Count > 0)
+            if (digitalDpadvalue != -1)
             {
                 return DpadType.DigitalDpad;
             }
@@ -123,7 +123,7 @@ namespace Benjamin94.Input
         {
             while (input.GetPressedButton() == -1)
             {
-                if (GTA.Game.IsKeyPressed(System.Windows.Forms.Keys.Escape)) return false;
+                if (Game.IsKeyPressed(System.Windows.Forms.Keys.Escape)) return false;
                 UI.ShowSubtitle("Press and hold the " + GetBtnText(btn) + " button on the controller for 1 second. Press the Esc key to cancel.", 120);
                 Script.Wait(100);
             }
@@ -163,7 +163,7 @@ namespace Benjamin94.Input
         {
             while (input.GetDpadValue() == -1)
             {
-                if (GTA.Game.IsKeyPressed(System.Windows.Forms.Keys.Escape)) return false;
+                if (Game.IsKeyPressed(System.Windows.Forms.Keys.Escape)) return false;
                 UI.ShowSubtitle("Press and hold the " + GetBtnText(btn) + " button on the controller for 1 second. Press the Esc key to cancel.", 120);
                 Script.Wait(100);
             }
@@ -189,7 +189,7 @@ namespace Benjamin94.Input
                 Script.Wait(1000);
             }
 
-            return false;
+            return true;
         }
 
         /// <summary>

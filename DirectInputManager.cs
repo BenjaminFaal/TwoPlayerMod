@@ -165,6 +165,10 @@ namespace Benjamin94
                 return manager;
             }
 
+            /// <summary>
+            /// Helper method to get dpad value for digital dpads
+            /// </summary>
+            /// <returns>-1 if no dpad button pressed otherwise the value of the button</returns>
             public int GetDpadValue()
             {
                 try

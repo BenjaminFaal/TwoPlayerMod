@@ -411,7 +411,7 @@ public class TwoPlayerMod : Script
         player1.Task.ClearAll();
 
         player2 = World.CreatePed(characterHash, player1.GetOffsetInWorldCoords(new Vector3(0, 5, 0)));
-        
+
         while (!player2.Exists())
         {
             UI.ShowSubtitle("Setting up Player 2");
@@ -444,7 +444,7 @@ public class TwoPlayerMod : Script
 
         player2.Task.ClearAllImmediately();
 
-        player2.AlwaysKeepTask = true;
+        player2.AlwaysKeepTask = false;
 
         player2.NeverLeavesGroup = true;
         player2.RelationshipGroup = player1.RelationshipGroup;
@@ -515,9 +515,8 @@ public class TwoPlayerMod : Script
                         input = DirectInputManager.LoadConfig(stick, GetIniFile());
                     }
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
-                    System.Windows.Forms.MessageBox.Show(ex.Message);
                     throw;
                 }
             }
@@ -645,7 +644,7 @@ public class TwoPlayerMod : Script
                     if (action != LastVehicleAction)
                     {
                         LastVehicleAction = action;
-                        
+
                         PerformVehicleAction(player2, v, action);
                     }
                 }
@@ -693,7 +692,13 @@ public class TwoPlayerMod : Script
                         Ped driver = v.GetPedOnSeat(VehicleSeat.Driver);
                         if (driver != null && driver != player1)
                         {
-                            driver.Delete();
+                            driver.Task.LeaveVehicle();
+                            Function.Call(Hash.TASK_OPEN_VEHICLE_DOOR, player2, v,-1, -1, float.MaxValue);
+                            while (driver.IsInVehicle(v))
+                            {
+                                Wait(150);
+                            }
+                            driver.Task.RunTo(player2.GetOffsetInWorldCoords(new Vector3(50, 50, 50)), true);
                         }
                         player2.Task.EnterVehicle(v, VehicleSeat.Driver);
                     }
@@ -1111,14 +1116,6 @@ public class TwoPlayerMod : Script
     private void SelectWeapon(Ped p, WeaponHash weaponHash)
     {
         WeaponIndex = Array.IndexOf(weapons, weaponHash);
-
-        if (p.IsInVehicle() && IsMelee(weaponHash))
-        {
-            while (IsMelee(weapons[WeaponIndex]))
-            {
-                WeaponIndex++;
-            }
-        }
 
         Function.Call(Hash.SET_CURRENT_PED_WEAPON, p, new InputArgument(weaponHash), true);
         UpdateLastAction(Player2Action.SelectWeapon);

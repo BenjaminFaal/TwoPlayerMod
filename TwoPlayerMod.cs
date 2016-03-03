@@ -677,7 +677,7 @@ public class TwoPlayerMod : Script
                 {
                     Vehicle v = World.GetClosestVehicle(player2.Position, 15);
                     if (v != null && v == player1.CurrentVehicle)
-                    {
+                    {                        
                         if (v.GetPedOnSeat(VehicleSeat.Passenger) == player1)
                         {
                             player2.Task.EnterVehicle(v, VehicleSeat.Driver);
@@ -693,7 +693,6 @@ public class TwoPlayerMod : Script
                         if (driver != null && driver != player1)
                         {
                             driver.Task.LeaveVehicle();
-                            Function.Call(Hash.TASK_OPEN_VEHICLE_DOOR, player2, v,-1, -1, float.MaxValue);
                             while (driver.IsInVehicle(v))
                             {
                                 Wait(150);
@@ -730,7 +729,12 @@ public class TwoPlayerMod : Script
                         }
                         else if (driver != player2)
                         {
-                            driver.Delete();
+                            driver.Task.LeaveVehicle();
+                            while (driver.IsInVehicle(v))
+                            {
+                                Wait(150);
+                            }
+                            driver.Task.RunTo(player2.GetOffsetInWorldCoords(new Vector3(50, 50, 50)), true);
                         }
                         player1.Task.EnterVehicle(v, VehicleSeat.Passenger);
                     }

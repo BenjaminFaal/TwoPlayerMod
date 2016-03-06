@@ -667,29 +667,7 @@ public class TwoPlayerMod : Script
                 }
 
 
-                //Switches input directions to match camera angle
-                float tempX;
-                switch (camDirection)
-                {
-                    case 0:                             //No need to change offset
-                        break;
-                    case 1:                             //Switch X and Y, make X negative
-                        tempX = offset.X;
-                        offset.X = offset.Y;
-                        offset.Y = -tempX;
-                        break;
-                    case 2:                             //Make X and Y negative
-                        offset.X = -offset.X;
-                        offset.Y = -offset.Y;
-                        break;
-                    case 3:                             //Switch X and Y, make Y negative
-                        tempX = offset.X;
-                        offset.X = -offset.Y;
-                        offset.Y = tempX;
-                        break;
-                    default:                            //Just in case
-                        break;
-                }
+                offset = alterInput(offset);
 
                 if (offset != Vector2.Zero)
                 {
@@ -1078,31 +1056,7 @@ public class TwoPlayerMod : Script
             Vector3 dest = Vector3.Zero;
             if (customCamera)
             {
-                Vector3 offset = new Vector3(leftThumb.X, leftThumb.Y, 0);
-                //Switches input directions to match camera angle
-                float tempX;
-                switch (camDirection)
-                {
-                    case 0:                             //No need to change offset
-                        break;
-                    case 1:                             //Switch X and Y, make X negative
-                        tempX = offset.X;
-                        offset.X = offset.Y;
-                        offset.Y = -tempX;
-                        break;
-                    case 2:                             //Make X and Y negative
-                        offset.X = -offset.X;
-                        offset.Y = -offset.Y;
-                        break;
-                    case 3:                             //Switch X and Y, make Y negative
-                        tempX = offset.X;
-                        offset.X = -offset.Y;
-                        offset.Y = tempX;
-                        break;
-                    default:                            //Just in case
-                        break;
-                }
-                dest = player2.Position - offset;
+                dest = player2.Position - alterInput(new Vector3(leftThumb.X, leftThumb.Y, 0));
             }
             else
             {
@@ -1270,5 +1224,68 @@ public class TwoPlayerMod : Script
 
         Function.Call(Hash.SET_CURRENT_PED_WEAPON, p, new InputArgument(weaponHash), true);
         UpdateLastAction(Player2Action.SelectWeapon);
+    }
+
+
+    /// <summary>
+    /// Switches player input depending on camera orientation (Vector2)
+    /// </summary>
+    /// <param name="offset">Offset prior to remapping</param>
+    private Vector2 alterInput(Vector2 offset)
+    {
+        float tempX;
+        switch (camDirection)
+        {
+            case 0:                             //No need to change offset
+                break;
+            case 1:                             //Switch X and Y, make X negative
+                tempX = offset.X;
+                offset.X = offset.Y;
+                offset.Y = -tempX;
+                break;
+            case 2:                             //Make X and Y negative
+                offset.X = -offset.X;
+                offset.Y = -offset.Y;
+                break;
+            case 3:                             //Switch X and Y, make Y negative
+                tempX = offset.X;
+                offset.X = -offset.Y;
+                offset.Y = tempX;
+                break;
+            default:                            //Just in case
+                break;
+        }
+        return offset;
+    }
+
+    /// <summary>
+    /// Switches player input depending on camera orientation (Vector3)
+    /// </summary>
+    /// <param name="offset">Offset prior to remapping</param>
+    private Vector3 alterInput(Vector3 offset)
+    {
+        float tempX;
+        switch (camDirection)
+        {
+            case 0:                             //No need to change offset
+                break;
+            case 1:                             //Switch X and Y, make X negative
+                tempX = offset.X;
+                offset.X = offset.Y;
+                offset.Y = -tempX;
+                break;
+            case 2:                             //Make X and Y negative
+                offset.X = -offset.X;
+                offset.Y = -offset.Y;
+                break;
+            case 3:                             //Switch X and Y, make Y negative
+                tempX = offset.X;
+                offset.X = -offset.Y;
+                offset.Y = tempX;
+                break;
+            default:                            //Just in case
+                break;
+        }
+        return offset;
     }
 }

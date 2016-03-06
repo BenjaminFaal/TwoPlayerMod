@@ -37,6 +37,7 @@ public class TwoPlayerMod : Script
     private WeaponHash[] throwables = new WeaponHash[] { WeaponHash.StickyBomb, WeaponHash.Snowball, WeaponHash.SmokeGrenade, WeaponHash.ProximityMine, WeaponHash.Molotov, WeaponHash.Grenade, WeaponHash.Flare, WeaponHash.BZGas, WeaponHash.Ball };
     private int weaponIndex = 0;
 
+
     private int WeaponIndex
     {
         get
@@ -108,6 +109,8 @@ public class TwoPlayerMod : Script
     // camera
     private bool customCamera = false;
     private Camera camera;
+
+    private int camDirection = 0; //0 = South, 1 = West, 2 = North, 3 = East
 
     public TwoPlayerMod()
     {
@@ -662,6 +665,32 @@ public class TwoPlayerMod : Script
                 {
                     offset.Y--;
                 }
+
+
+                //Switches input directions to match camera angle
+                float tempX;
+                switch (camDirection)
+                {
+                    case 0:                             //No need to change offset
+                        break;
+                    case 1:                             //Switch X and Y, make X negative
+                        tempX = offset.X;
+                        offset.X = offset.Y;
+                        offset.Y = -tempX;
+                        break;
+                    case 2:                             //Make X and Y negative
+                        offset.X = -offset.X;
+                        offset.Y = -offset.Y;
+                        break;
+                    case 3:                             //Switch X and Y, make Y negative
+                        tempX = offset.X;
+                        offset.X = -offset.Y;
+                        offset.Y = tempX;
+                        break;
+                    default:                            //Just in case
+                        break;
+                }
+
                 if (offset != Vector2.Zero)
                 {
                     if (Game.IsControlPressed(0, GTA.Control.Sprint))
@@ -788,6 +817,23 @@ public class TwoPlayerMod : Script
                     }
                 }
             }
+            //Switches camera direction variable used later to change camera direction
+            if (input.isPressed(DeviceButton.DPadDown))//South
+            {
+                camDirection = 0;
+            }
+            if (input.isPressed(DeviceButton.DPadLeft))//West
+            {
+                camDirection = 1;
+            }
+            if (input.isPressed(DeviceButton.DPadUp))//North
+            {
+                camDirection = 2;
+            }
+            if (input.isPressed(DeviceButton.DPadRight))//East
+            {
+                camDirection = 3;
+            }
         }
     }
 
@@ -869,7 +915,7 @@ public class TwoPlayerMod : Script
         }
         return false;
     }
-
+    
     /// <summary>
     /// This will update the camera 
     /// </summary>
@@ -900,7 +946,30 @@ public class TwoPlayerMod : Script
                 }
             }
 
-            center.Y += 5f + (dist / 1.6f);
+            //Changes position of camera to switch direction
+            switch(camDirection)
+            {
+                case 0:                             //0 = South
+                    center.Y += 5f + (dist / 1.6f);
+                    Function.Call(Hash.LOCK_MINIMAP_ANGLE, 0);
+                    break;
+                case 1:                             //1 = West?
+                    center.X += 5f + (dist / 1.6f);
+                    Function.Call(Hash.LOCK_MINIMAP_ANGLE, 90);
+                    break;
+                case 2:                             //2 = North
+                    center.Y -= 5f + (dist / 1.6f);
+                    Function.Call(Hash.LOCK_MINIMAP_ANGLE, 180);
+                    break;
+                case 3:                             //3 = East?
+                    center.X -= 5f + (dist / 1.6f);
+                    Function.Call(Hash.LOCK_MINIMAP_ANGLE, 270);
+                    break;
+                default:                            //Just in case
+                    center.Y += 5f + (dist / 1.6f);
+                    break;
+            }
+
             center.Z += 2f + (dist / 1.4f);
 
             camera.Position = center;
@@ -1009,7 +1078,31 @@ public class TwoPlayerMod : Script
             Vector3 dest = Vector3.Zero;
             if (customCamera)
             {
-                dest = player2.Position - new Vector3(leftThumb.X, leftThumb.Y, 0);
+                Vector3 offset = new Vector3(leftThumb.X, leftThumb.Y, 0);
+                //Switches input directions to match camera angle
+                float tempX;
+                switch (camDirection)
+                {
+                    case 0:                             //No need to change offset
+                        break;
+                    case 1:                             //Switch X and Y, make X negative
+                        tempX = offset.X;
+                        offset.X = offset.Y;
+                        offset.Y = -tempX;
+                        break;
+                    case 2:                             //Make X and Y negative
+                        offset.X = -offset.X;
+                        offset.Y = -offset.Y;
+                        break;
+                    case 3:                             //Switch X and Y, make Y negative
+                        tempX = offset.X;
+                        offset.X = -offset.Y;
+                        offset.Y = tempX;
+                        break;
+                    default:                            //Just in case
+                        break;
+                }
+                dest = player2.Position - offset;
             }
             else
             {

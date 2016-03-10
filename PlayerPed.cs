@@ -159,9 +159,9 @@ namespace Benjamin94
             Ped.AlwaysKeepTask = true;
             Ped.NeverLeavesGroup = true;
             Ped.CanBeTargetted = true;
-        //    Ped.RelationshipGroup = Player1.RelationshipGroup;
+            Ped.RelationshipGroup = Player1.RelationshipGroup;
             Ped.CanRagdoll = false;
-            Ped.IsEnemy = true;
+            Ped.IsEnemy = false;
             Ped.DrownsInWater = false;
             Ped.DiesInstantlyInWater = false;
             Ped.DropsWeaponsOnDeath = false;

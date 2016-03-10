@@ -1,4 +1,8 @@
-﻿namespace Benjamin94
+﻿using SharpDX.DirectInput;
+using SharpDX.XInput;
+using System.Collections.Generic;
+
+namespace Benjamin94
 {
     namespace Input
     {
@@ -16,6 +20,11 @@
             /// Getter for user friendly device name
             /// </summary>
             public abstract string DeviceName { get; }
+
+            /// <summary>
+            /// Getter for GUID
+            /// </summary>
+            public abstract string DeviceGuid { get; }
 
             /// <summary>
             /// To determine if one or more DeviceButtons is/are pressed at this moment or not
@@ -125,6 +134,25 @@
             public bool IsDirectionRight(Direction dir)
             {
                 return dir == Direction.Right || dir == Direction.BackwardRight || dir == Direction.ForwardRight;
+            }
+
+            /// <summary>
+            /// Returns both XInput and DirectInput InputManager
+            /// </summary>
+            /// <returns>A List of InputManagers</returns>
+            public static List<InputManager> GetAvailableInputManagers()
+            {
+                List<InputManager> managers = new List<InputManager>();
+                foreach (Controller ctrl in XInputManager.GetDevices())
+                {
+                    managers.Add(new XInputManager(ctrl));
+                }
+
+                foreach (Joystick stick in DirectInputManager.GetDevices())
+                {
+                    managers.Add(new DirectInputManager(stick));
+                }
+                return managers;
             }
 
             /// <summary>

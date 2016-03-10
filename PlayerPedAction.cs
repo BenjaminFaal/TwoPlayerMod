@@ -1,6 +1,6 @@
 ﻿namespace Benjamin94
 {
-    enum Player2Action
+    enum PlayerPedAction
     {
         SelectWeapon, SelectTarget, Shoot, Jump, ThrowTrowable
     }

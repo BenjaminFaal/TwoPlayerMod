@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using GTA.Math;
 using System.Linq;
+using SharpDX.XInput;
 
 namespace Benjamin94
 {
@@ -32,6 +33,14 @@ namespace Benjamin94
                 get
                 {
                     return device.Information.ProductName;
+                }
+            }
+
+            public override string DeviceGuid
+            {
+                get
+                {
+                    return device.Information.ProductGuid.ToString();
                 }
             }
 
@@ -70,11 +79,11 @@ namespace Benjamin94
 
                     // dont include Xbox controllers
                     string name = joystick.Information.ProductName.ToLower();
-                    if (!name.Contains("xbox") && !name.Contains("360"))
+
+                    if (!name.Contains("xbox") && !name.Contains("360") && !name.Contains("xinput"))
                     {
                         sticks.Add(joystick);
                     }
-
                 }
                 return sticks;
             }
@@ -187,19 +196,6 @@ namespace Benjamin94
                 {
                 }
                 return -1;
-            }
-
-            /// <summary>
-            /// Helper method to check if a controller is configured as default in a config file
-            /// </summary>
-            /// <param name="stick">The Joystick which needs to be checked</param>
-            /// <param name="file">The path to the config file</param>
-            /// <param name="section">The INI section in which the 'Controller' key will be, it will typically have a GUID as value</param>
-            /// <returns></returns>
-            public static bool IsDefault(Joystick stick, string file, string section)
-            {
-                ScriptSettings settings = ScriptSettings.Load(file);
-                return IsConfigured(stick, file) && settings.GetValue(section, TwoPlayerMod.ControllerKey, "").ToLower().Equals(stick.Information.ProductGuid.ToString().ToLower());
             }
 
             /// <summary>

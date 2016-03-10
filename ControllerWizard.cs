@@ -10,6 +10,8 @@ namespace Benjamin94.Input
     /// </summary>
     class ControllerWizard
     {
+        private readonly DeviceButton[] dpads = new DeviceButton[] { DeviceButton.DPadUp, DeviceButton.DPadDown, DeviceButton.DPadLeft, DeviceButton.DPadRight };
+
         private Joystick stick;
 
         public ControllerWizard(Joystick stick)
@@ -28,7 +30,6 @@ namespace Benjamin94.Input
 
             ScriptSettings data = ScriptSettings.Load(iniFile);
             string guid = stick.Information.ProductGuid.ToString();
-            data.SetValue(TwoPlayerMod.ScriptName, TwoPlayerMod.ControllerKey, guid);
 
             DpadType dpadType = DetermineDpadType(input);
             if (dpadType == (DpadType)3)
@@ -57,7 +58,7 @@ namespace Benjamin94.Input
 
             foreach (DeviceButton btn in Enum.GetValues(typeof(DeviceButton)))
             {
-                if (btn.ToString().ToLower().Contains("dpad") && dpadType == DpadType.DigitalDpad)
+                if (Array.Exists(dpads, item => { return item == btn ; }) && dpadType == DpadType.DigitalDpad)
                 {
                     bool result = ConfigureDigitalDpadButton(btn, data, input, guid);
                     if (!result)

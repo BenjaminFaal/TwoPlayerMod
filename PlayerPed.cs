@@ -308,6 +308,22 @@ namespace Benjamin94
                     Ped.Position = Player1.Position.Around(5);
                 }
             }
+            if (Input.isPressed(DeviceButton.DPadDown))//South
+            {
+                TwoPlayerMod.changeCamera(0);
+            }
+            if (Input.isPressed(DeviceButton.DPadLeft))//West
+            {
+                TwoPlayerMod.changeCamera(1);
+            }
+            if (Input.isPressed(DeviceButton.DPadUp))//North
+            {
+                TwoPlayerMod.changeCamera(2);
+            }
+            if (Input.isPressed(DeviceButton.DPadRight))//East
+            {
+                TwoPlayerMod.changeCamera(3);
+            }
         }
 
         /// <summary>
@@ -457,12 +473,13 @@ namespace Benjamin94
                 Vector3 dest = Vector3.Zero;
                 if (TwoPlayerMod.customCamera)
                 {
-                    dest = Ped.Position - new Vector3(leftThumb.X, leftThumb.Y, 0);
+                    dest = Ped.Position - TwoPlayerMod.alterInput(new Vector3(leftThumb.X, leftThumb.Y, 0));
                 }
                 else
                 {
-                    dest = Ped.GetOffsetInWorldCoords(new Vector3(leftThumb.X, leftThumb.Y, 0));
+                    dest = Ped.GetOffsetInWorldCoords(TwoPlayerMod.alterInput(new Vector3(leftThumb.X, leftThumb.Y, 0)));
                 }
+
 
                 Ped.Task.RunTo(dest, true, -1);
                 resetWalking = true;
@@ -649,5 +666,7 @@ namespace Benjamin94
         {
             lastActions[action] = Game.GameTime;
         }
+
+
     }
 }

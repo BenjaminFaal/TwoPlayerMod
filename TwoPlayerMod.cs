@@ -549,23 +549,26 @@ class TwoPlayerMod : Script
                     resetWalking = false;
                 }
 
-                
+
                 //Change camera when Player 1 right stick + RB (unassigned controller) is moved or appropriate numkey is pressed.
-                if ((Game.IsControlPressed(0, GTA.Control.LookDownOnly) && Game.IsControlPressed(0, GTA.Control.Cover)) || Game.IsKeyPressed(Keys.NumPad2))
+                if (Game.IsControlPressed(0, GTA.Control.Cover))
                 {
-                    ChangeCamera(CameraDirection.South);
-                }
-                if ((Game.IsControlPressed(0, GTA.Control.LookLeftOnly) && Game.IsControlPressed(0, GTA.Control.Cover)) || Game.IsKeyPressed(Keys.NumPad4))
-                {
-                    ChangeCamera(CameraDirection.West);
-                }
-                if ((Game.IsControlPressed(0, GTA.Control.LookUpOnly) && Game.IsControlPressed(0, GTA.Control.Cover)) || Game.IsKeyPressed(Keys.NumPad8))
-                {
-                    ChangeCamera(CameraDirection.North);
-                }
-                if ((Game.IsControlPressed(0, GTA.Control.LookRightOnly) && Game.IsControlPressed(0, GTA.Control.Cover)) || Game.IsKeyPressed(Keys.NumPad6))
-                {
-                    ChangeCamera(CameraDirection.East);
+                    if (Game.IsControlPressed(0, GTA.Control.LookDownOnly) || Game.IsKeyPressed(Keys.NumPad2))
+                    {
+                        ChangeCamera(CameraDirection.South);
+                    }
+                    if (Game.IsControlPressed(0, GTA.Control.LookLeftOnly) || Game.IsKeyPressed(Keys.NumPad4))
+                    {
+                        ChangeCamera(CameraDirection.West);
+                    }
+                    if (Game.IsControlPressed(0, GTA.Control.LookUpOnly) || Game.IsKeyPressed(Keys.NumPad8))
+                    {
+                        ChangeCamera(CameraDirection.North);
+                    }
+                    if (Game.IsControlPressed(0, GTA.Control.LookRightOnly) || Game.IsKeyPressed(Keys.NumPad6))
+                    {
+                        ChangeCamera(CameraDirection.East);
+                    }
                 }
             }
 
@@ -624,23 +627,23 @@ class TwoPlayerMod : Script
             //Switch location (direction = location + PointAt) of camera depending on camDirection
             switch (camDirection)
             {
-                case CameraDirection.South:                            
+                case CameraDirection.South:
                     center.Y += 5f + (dist / 1.6f);
                     Function.Call(Hash.LOCK_MINIMAP_ANGLE, 0);
                     break;
-                case CameraDirection.West:                             
+                case CameraDirection.West:
                     center.X += 5f + (dist / 1.6f);
                     Function.Call(Hash.LOCK_MINIMAP_ANGLE, 90);
                     break;
-                case CameraDirection.North:                            
+                case CameraDirection.North:
                     center.Y -= 5f + (dist / 1.6f);
                     Function.Call(Hash.LOCK_MINIMAP_ANGLE, 180);
                     break;
-                case CameraDirection.East:                            
+                case CameraDirection.East:
                     center.X -= 5f + (dist / 1.6f);
                     Function.Call(Hash.LOCK_MINIMAP_ANGLE, 270);
                     break;
-                default:                            
+                default:
                     center.Y += 5f + (dist / 1.6f);
                     Function.Call(Hash.LOCK_MINIMAP_ANGLE, 0);
                     break;
@@ -726,4 +729,4 @@ class TwoPlayerMod : Script
         return offset;
     }
 
-    }
+}

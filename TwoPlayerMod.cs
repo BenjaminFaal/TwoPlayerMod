@@ -15,20 +15,21 @@ using System.Drawing;
 /// <summary>
 /// The main Script, this will handle all logic
 /// </summary>
-public class TwoPlayerMod : Script
+class TwoPlayerMod : Script
 {
     // for ini keys
-    public const string ScriptName = "TwoPlayerMod";
+    public static string ScriptName = "TwoPlayerMod";
     private const string ToggleMenuKey = "ToggleMenuKey";
     private const string CharacterHashKey = "CharacterHash";
-    public const string ControllerKey = "Controller";
+    private const string ControllerKey = "Controller";
     private const string CustomCameraKey = "CustomCamera";
-    private const string PlayerTwoBlipSpriteKey = "PlayerTwoBlipSprite";
-    private const string PlayerTwoBlipColorKey = "PlayerTwoBlipColor";
+    private const string BlipSpriteKey = "BlipSprite";
+    private const string BlipColorKey = "BlipColor";
+    private const string EnabledKey = "Enabled";
 
     // Player 1
     private Player player;
-    private Ped player1;
+    public static Ped player1;
 
     // Player 2 
     private Ped player2;
@@ -88,32 +89,31 @@ public class TwoPlayerMod : Script
     private VehicleAction LastVehicleAction = VehicleAction.Brake;
 
     private Dictionary<Player2Action, int> lastActions = new Dictionary<Player2Action, int>();
+    // PlayerPeds
+    public static List<PlayerPed> playerPeds = new List<PlayerPed>();
 
     // Menu
     private UIMenu menu;
-    private MenuPool menuPool;
-
-    // Controllers menu
-    private UIMenu controllersMenu;
-    private UIMenuItem controllersMenuItem;
-    private bool controllerConnected = false;
-    private const string controllersMenuDescConfig = "Configure controllers, yellow star means the controller is configured successfully and is the default controller", controllersMenuDescNoControllers = "No controllers detected. Press \"Refresh controllers\" if there really is a controller connected";
+    private MenuPool menuPool = new MenuPool();
 
     // Settings
     private Keys toggleMenuKey = Keys.F11;
-    private PedHash characterHash = PedHash.Trevor;
-
-    // Controls
-    private InputManager input;
 
     // camera
-    private bool customCamera = false;
+    public static bool customCamera = false;
     private Camera camera;
 
     private int camDirection = 0; //0 = South, 1 = West, 2 = North, 3 = East
+    // players 
+    private readonly UserIndex[] userIndices = new UserIndex[] { UserIndex.Two, UserIndex.Three, UserIndex.Four };
 
     public TwoPlayerMod()
     {
+        ScriptName = Name;
+        player = Game.Player;
+        player1 = player.Character;
+        player1.Task.ClearAll();
+
         LoadSettings();
         SetupMenu();
 
@@ -126,69 +126,30 @@ public class TwoPlayerMod : Script
     /// </summary>
     private void LoadSettings()
     {
-        ScriptSettings settings = ScriptSettings.Load(GetIniFile());
         try
         {
-            toggleMenuKey = (Keys)new KeysConverter().ConvertFromString(settings.GetValue(Name, ToggleMenuKey, Keys.F11.ToString()));
+            toggleMenuKey = (Keys)new KeysConverter().ConvertFromString(Settings.GetValue(Name, ToggleMenuKey, Keys.F11.ToString()));
         }
         catch (Exception)
         {
             toggleMenuKey = Keys.F11;
             UI.Notify("Failed to read '" + ToggleMenuKey + "', reverting to default " + ToggleMenuKey + " F11");
 
-            settings.SetValue(Name, ToggleMenuKey, Keys.F11.ToString());
-            settings.Save();
-        }
-        try
-        {
-            characterHash = (PedHash)Enum.Parse(typeof(PedHash), settings.GetValue(Name, CharacterHashKey, "Trevor"));
-        }
-        catch (Exception)
-        {
-            characterHash = PedHash.Trevor;
-            UI.Notify("Failed to read '" + CharacterHashKey + "', reverting to default " + CharacterHashKey + " Trevor");
-
-            settings.SetValue(Name, CharacterHashKey, PedHash.Trevor.ToString());
-            settings.Save();
+            Settings.SetValue(Name, ToggleMenuKey, Keys.F11.ToString());
+            Settings.Save();
         }
 
         try
         {
-            customCamera = bool.Parse(settings.GetValue(Name, CustomCameraKey, "False"));
+            customCamera = bool.Parse(Settings.GetValue(Name, CustomCameraKey, "False"));
         }
         catch (Exception)
         {
             customCamera = false;
             UI.Notify("Failed to read '" + CustomCameraKey + "', reverting to default " + CustomCameraKey + " False");
 
-            settings.SetValue(Name, CustomCameraKey, "False");
-            settings.Save();
-        }
-
-        try
-        {
-            p2BlipSprite = settings.GetValue(Name, PlayerTwoBlipSpriteKey, p2BlipSprite);
-        }
-        catch (Exception)
-        {
-            p2BlipSprite = BlipSprite.Standard;
-            UI.Notify("Failed to read '" + PlayerTwoBlipSpriteKey + "', reverting to default " + PlayerTwoBlipSpriteKey + " Standard");
-
-            settings.SetValue(Name, PlayerTwoBlipSpriteKey, p2BlipSprite);
-            settings.Save();
-        }
-
-        try
-        {
-            p2BlipColor = settings.GetValue(Name, PlayerTwoBlipColorKey, p2BlipColor);
-        }
-        catch (Exception)
-        {
-            p2BlipColor = BlipColor.Green;
-            UI.Notify("Failed to read '" + PlayerTwoBlipColorKey + "', reverting to default " + PlayerTwoBlipColorKey + " Green");
-
-            settings.SetValue(Name, PlayerTwoBlipColorKey, p2BlipColor);
-            settings.Save();
+            Settings.SetValue(Name, CustomCameraKey, "False");
+            Settings.Save();
         }
     }
 
@@ -198,26 +159,126 @@ public class TwoPlayerMod : Script
     /// <returns>true or false whether the mod is enabled</returns>
     private bool Enabled()
     {
-        return player2 != null;
+        return playerPeds.Count > 0;
     }
 
     /// <summary>
-    /// Gets all of the connected controllers and adds them to the controller menu
+    /// Sets up the NativeUI menu
     /// </summary>
-    private void GetControllers()
+    private void SetupMenu()
     {
-        controllerConnected = DirectInputManager.GetDevices().Count > 0 || XInputManager.GetDevices().Count > 0;
+        if (menuPool != null)
+        {
+            menuPool.ToList().ForEach(menu => { menu.Clear(); });
+        }
 
+        menu = new UIMenu("Two Player Mod", Enabled() ? "~g~Enabled" : "~r~Disabled");
+        menuPool.Add(menu);
+
+        UIMenuItem toggleItem = new UIMenuItem("Toggle mod", "Toggle Two Player mode");
+        toggleItem.Activated += ToggleMod_Activated;
+        menu.AddItem(toggleItem);
+
+        UIMenu allPlayersMenu = menuPool.AddSubMenu(menu, "Players");
+        menu.MenuItems.FirstOrDefault(item => { return item.Text.Equals("Players"); }).Description = "Configure players";
+
+        foreach (UserIndex player in userIndices)
+        {
+            bool check = bool.Parse(PlayerSettings.GetValue(player, EnabledKey, false.ToString()));
+
+            UIMenu playerMenu = menuPool.AddSubMenu(allPlayersMenu, "Player " + player);
+            UIMenuItem playerItem = allPlayersMenu.MenuItems.FirstOrDefault(item => { return item.Text.Equals("Player " + player); });
+
+            string controllerGuid = PlayerSettings.GetValue(player, ControllerKey, "");
+
+            playerItem.Description = "Configure player " + player;
+
+            if (!string.IsNullOrEmpty(controllerGuid))
+            {
+                playerItem.SetRightBadge(UIMenuItem.BadgeStyle.Star);
+            }
+
+            UIMenuCheckboxItem togglePlayerItem = new UIMenuCheckboxItem("Toggle player " + player, check, "Enables/disables this player");
+
+            togglePlayerItem.CheckboxEvent += (s, enabled) =>
+            {
+                PlayerSettings.SetValue(player, EnabledKey, enabled.ToString());
+
+                RefreshSubItems(togglePlayerItem, playerMenu, enabled);
+            };
+
+            playerMenu.AddItem(togglePlayerItem);
+
+            playerMenu.AddItem(ConstructSettingsListItem(player, "Character", "Select a character for player " + player, CharacterHashKey, PedHash.Trevor));
+            playerMenu.AddItem(ConstructSettingsListItem(player, "Blip sprite", "Select a blip sprite for player " + player, BlipSpriteKey, BlipSprite.Standard));
+            playerMenu.AddItem(ConstructSettingsListItem(player, "Blip color", "Select a blip color for player " + player, BlipColorKey, BlipColor.Green));
+
+            UIMenu controllerMenu = menuPool.AddSubMenu(playerMenu, "Assign controller");
+            playerMenu.MenuItems.FirstOrDefault(item => { return item.Text.Equals("Assign controller"); }).Description = "Assign controller to player " + player;
+
+            foreach (InputManager manager in InputManager.GetAvailableInputManagers())
+            {
+                UIMenuItem controllerItem = new UIMenuItem(manager.DeviceName, "Assign this controller to player " + player);
+
+                string guid = manager.DeviceGuid;
+
+                if (PlayerSettings.GetValue(player, ControllerKey, "").Equals(guid))
+                {
+                    controllerItem.SetRightBadge(UIMenuItem.BadgeStyle.Star);
+                }
+
+                if (manager is DirectInputManager)
+                {
+                    DirectInputManager directManager = (DirectInputManager)manager;
+                    bool configured = DirectInputManager.IsConfigured(directManager.device, GetIniFile());
+                    controllerItem.Enabled = configured;
+
+                    if (!configured)
+                    {
+                        controllerItem.Description = "Please configure this controller first from the main menu";
+                    }
+                }
+
+                controllerItem.Activated += (s, i) =>
+                {
+                    if (i.Enabled)
+                    {
+                        PlayerSettings.SetValue(player, ControllerKey, guid);
+
+                        controllerMenu.MenuItems.ForEach(item =>
+                        {
+                            if (item == controllerItem)
+                            {
+                                item.SetRightBadge(UIMenuItem.BadgeStyle.Star);
+                            }
+                            else
+                            {
+                                item.SetRightBadge(UIMenuItem.BadgeStyle.None);
+                            }
+                        });
+                    }
+                };
+
+                controllerMenu.AddItem(controllerItem);
+            }
+
+            RefreshSubItems(togglePlayerItem, playerMenu, check);
+        }
+
+        UIMenuCheckboxItem cameraItem = new UIMenuCheckboxItem("GTA:SA style camera", customCamera, "Enables/disables the GTA:SA style camera");
+        cameraItem.CheckboxEvent += (s, i) =>
+        {
+            customCamera = !customCamera;
+            Settings.SetValue(Name, CustomCameraKey, customCamera.ToString());
+            Settings.Save();
+        };
+        menu.AddItem(cameraItem);
+
+        UIMenu controllersMenu = menuPool.AddSubMenu(menu, "Configure controllers");
+        menu.MenuItems.FirstOrDefault(item => { return item.Text.Equals("Configure controllers"); }).Description = "Configure controllers before assigning them to players";
         foreach (Joystick stick in DirectInputManager.GetDevices())
         {
             UIMenuItem stickItem = new UIMenuItem(stick.Information.ProductName, "Configure " + stick.Information.ProductName);
-
-            bool def = DirectInputManager.IsDefault(stick, GetIniFile(), Name);
-
-            if (def)
-            {
-                stickItem.SetLeftBadge(UIMenuItem.BadgeStyle.Star);
-            }
 
             controllersMenu.AddItem(stickItem);
             stickItem.Activated += (s, i) =>
@@ -226,138 +287,107 @@ public class TwoPlayerMod : Script
                 bool success = wizard.StartConfiguration(GetIniFile());
                 if (success)
                 {
-                    UI.Notify("Controller successfully configured, you can now start playing");
-
-                    // if enabled the mod already then reload the InputManager so it is up to date with the new configuration
-                    if (Enabled())
-                    {
-                        input = DirectInputManager.LoadConfig(stick, GetIniFile());
-                    }
+                    UI.Notify("Controller successfully configured, you can now assign this controller");
                 }
                 else
                 {
                     UI.Notify("Controller configuration canceled, please configure your controller before playing");
                 }
-                controllersMenu.GoBack();
+                SetupMenu();
             };
+        }
+
+        menu.RefreshIndex();
+    }
+
+    /// <summary>
+    /// Refreshes all items in the UIMenu except the parentItem
+    /// </summary>
+    /// <param name="parentItem">The parent UIMenuItem to ignore</param>
+    /// <param name="menu">UIMenu</param>
+    /// <param name="enabled">Whether to enable or disable the sub items</param>
+    private void RefreshSubItems(UIMenuItem parentItem, UIMenu menu, bool enabled)
+    {
+        foreach (UIMenuItem item in menu.MenuItems)
+        {
+            if (!item.Equals(parentItem))
+            {
+                item.Enabled = enabled;
+            }
         }
     }
 
     /// <summary>
-    /// Sets up the NativeUI menu
+    /// Constructs a new UIMenuListItem with automatic handling of selected value
     /// </summary>
-    private void SetupMenu()
+    /// <typeparam name="TEnum">The type of the enum</typeparam>
+    /// <param name="player">The </param>
+    /// <param name="text">The menu item text</param>
+    /// <param name="description">The menu item description</param>
+    /// <param name="settingsKey">The settings key</param>
+    /// <param name="defaultValue">The initial selected value</param>
+    /// <returns>A fully working UIMenuListItem with automatic saving</returns>
+    private UIMenuListItem ConstructSettingsListItem<TEnum>(UserIndex player, string text, string description, string settingsKey, TEnum defaultValue)
     {
-        menuPool = new MenuPool();
-        menu = new UIMenu("Two Player Mod", Enabled() ? "~g~Enabled" : "~r~Disabled");
-        menuPool.Add(menu);
+        List<dynamic> items = GetDynamicEnumList<TEnum>();
 
-        UIMenuItem toggleItem = new UIMenuItem("Toggle mod", "Toggle Two Player mode");
-        toggleItem.Activated += ToggleMod_Activated;
-        menu.AddItem(toggleItem);
+        TEnum value = PlayerSettings.GetEnumValue<TEnum>(player, settingsKey, defaultValue.ToString());
 
-        List<dynamic> hashes = new List<dynamic>();
-
-        foreach (PedHash pedHash in Enum.GetValues(typeof(PedHash)))
+        UIMenuListItem menuItem = new UIMenuListItem(text, items, items.IndexOf(value.ToString()), description);
+        menuItem.OnListChanged += (s, i) =>
         {
-            hashes.Add(pedHash.ToString());
-        }
-
-        hashes.Sort();
-
-        ScriptSettings settings = ScriptSettings.Load(GetIniFile());
-
-        UIMenuListItem characterItem = new UIMenuListItem("Character", hashes, hashes.IndexOf(characterHash.ToString()), "Select a character for player 2");
-
-        characterItem.OnListChanged += (s, i) =>
-        {
-            PedHash selectedHash = Enum.Parse(typeof(PedHash), s.IndexToItem(s.Index));
-            characterHash = selectedHash;
-            settings.SetValue(Name, CharacterHashKey, selectedHash.ToString());
-            settings.Save();
-        };
-
-        menu.AddItem(characterItem);
-
-        List<dynamic> sprites = new List<dynamic>();
-
-        foreach (BlipSprite sprite in Enum.GetValues(typeof(BlipSprite)))
-        {
-            sprites.Add(sprite.ToString());
-        }
-
-        sprites.Sort();
-
-        UIMenuListItem spriteItem = new UIMenuListItem("Character blip sprite", sprites, sprites.IndexOf(p2BlipSprite.ToString()), "Select a blip sprite for player 2");
-
-        spriteItem.OnListChanged += (s, i) =>
-        {
-            p2BlipSprite = Enum.Parse(typeof(BlipSprite), s.IndexToItem(s.Index));
-            settings.SetValue(Name, PlayerTwoBlipSpriteKey, p2BlipSprite);
-            settings.Save();
-
-            if (Enabled())
+            if (s.Enabled)
             {
-                player2.CurrentBlip.Remove();
-                AddBlipToP2();
+                TEnum selectedItem = Enum.Parse(typeof(TEnum), s.IndexToItem(s.Index));
+                PlayerSettings.SetValue(player, settingsKey, selectedItem.ToString());
             }
         };
+        return menuItem;
+    }
 
-        menu.AddItem(spriteItem);
-
-        List<dynamic> colors = new List<dynamic>();
-
-        foreach (BlipColor sprite in Enum.GetValues(typeof(BlipColor)))
+    /// <summary>
+    /// This method will handle entering vehicles
+    /// </summary>
+    /// <param name="ped">Target Ped</param>
+    public static void HandleEnterVehicle(Ped ped)
+    {
+        Vehicle v = World.GetClosestVehicle(ped.Position, 15);
+        if (v == null)
         {
-            colors.Add(sprite.ToString());
+            return;
+        }
+        Ped driver = v.GetPedOnSeat(VehicleSeat.Driver);
+
+        if (driver != null && driver.IsPlayerPed())
+        {
+            ped.Task.EnterVehicle(v, VehicleSeat.Any);
+        }
+        else
+        {
+            if (driver != null)
+            {
+                driver.Delete();
+            }
+            ped.Task.EnterVehicle(v, VehicleSeat.Any);
+        }
+    }
+
+    /// <summary>
+    /// Helper method to get all values of an Enum for displaying in a menu
+    /// </summary>
+    /// <param name="type">Type of the Enum</param>
+    /// <returns>Sorted list of all possible given Enum values</returns>
+    private List<dynamic> GetDynamicEnumList<TEnum>()
+    {
+        List<dynamic> values = new List<dynamic>();
+
+        foreach (Enum pedHash in Enum.GetValues(typeof(TEnum)))
+        {
+            values.Add(pedHash.ToString());
         }
 
-        colors.Sort();
-
-        UIMenuListItem colorItem = new UIMenuListItem("Character blip color", colors, colors.IndexOf(p2BlipColor.ToString()), "Select a blip color for player 2");
-
-        colorItem.OnListChanged += (s, i) =>
-        {
-            p2BlipColor = Enum.Parse(typeof(BlipColor), s.IndexToItem(s.Index));
-            settings.SetValue(Name, PlayerTwoBlipColorKey, p2BlipColor);
-            settings.Save();
-
-            if (Enabled())
-            {
-                player2.CurrentBlip.Remove(); //sometimes the color changes to the selected color, other times it will change to white. 
-                AddBlipToP2(); //if you keep changing the colors (in one direction) and get back to the original item it might change, but if you go back or forward an item and then go back to the original it will not.
-            }
-        };
-
-        menu.AddItem(colorItem);
-
-        UIMenuCheckboxItem cameraItem = new UIMenuCheckboxItem("Toggle GTA:SA camera", customCamera, "This enables/disables the GTA:SA style camera");
-        cameraItem.CheckboxEvent += (s, i) =>
-        {
-            customCamera = !customCamera;
-            settings.SetValue(Name, CustomCameraKey, customCamera.ToString());
-            settings.Save();
-        };
-        menu.AddItem(cameraItem);
-
-        controllersMenu = menuPool.AddSubMenu(menu, "Controllers");
-        controllersMenuItem = menu.MenuItems.Where(item => item.Text == "Controllers").FirstOrDefault();
-        controllersMenuItem.Activated += (s, i) =>
-        {
-            controllersMenu.MenuItems.Clear();
-            GetControllers();
-        };
-        GetControllers();
-
-        UIMenuItem refreshControllersItem = new UIMenuItem("Refresh controllers", "Get recently connected controllers");
-        refreshControllersItem.Activated += (s, i) =>
-        {
-            controllersMenu.MenuItems.Clear();
-            GetControllers();
-        };
-        menu.AddItem(refreshControllersItem);
-
-        menu.RefreshIndex();
+        values.Sort();
+        return values;
     }
 
     /// <summary>
@@ -370,22 +400,23 @@ public class TwoPlayerMod : Script
     }
 
     /// <summary>
-    /// Gets called by NativeUI when the user selects "Toggle Mod" in the menu
+    /// Gets called by NativeUI when the user selects "Toggle mod" in the menu
     /// </summary>
     private void ToggleMod_Activated(UIMenu sender, UIMenuItem selectedItem)
     {
         if (!Enabled())
         {
-            try
+            UI.ShowSubtitle("Like this mod? Please consider donating!", 10000);
+            SetupPlayerPeds();
+
+            if (playerPeds.Count == 0)
             {
-                SetupController();
-            }
-            catch (Exception e)
-            {
-                UI.Notify("Error occured while loading controller: " + e.Message);
+                UI.Notify("Please assign a controller to at least one player");
+                UI.Notify("Also make sure you have configured at least one controller");
                 return;
             }
-            SetupPlayer2();
+
+            SetupCamera();
         }
         else
         {
@@ -395,85 +426,37 @@ public class TwoPlayerMod : Script
     }
 
     /// <summary>
-    /// Adds the blip to Player 2
+    /// Sets up all correctly configured PlayerPed
     /// </summary>
-    private void AddBlipToP2()
+    private void SetupPlayerPeds()
     {
-        player2.AddBlip().Sprite = p2BlipSprite;
-        player2.CurrentBlip.Color = p2BlipColor;
-    }
-
-    /// <summary>
-    /// Sets up Player 2
-    /// </summary>
-    private void SetupPlayer2()
-    {
-        player = Game.Player;
-        player1 = player.Character;
-        player1.IsInvincible = true;
-        player1.Task.ClearAll();
-
-        player2 = World.CreatePed(characterHash, player1.GetOffsetInWorldCoords(new Vector3(0, 5, 0)));
-
-        while (!player2.Exists())
+        foreach (UserIndex player in userIndices)
         {
-            UI.ShowSubtitle("Setting up Player 2");
-            Wait(100);
-        }
-
-        player2.IsEnemy = false;
-        player2.IsInvincible = true;
-        player2.DropsWeaponsOnDeath = false;
-
-        // dont let the player2 ped decide what to do when there is combat etc.
-        Function.Call(Hash.SET_BLOCKING_OF_NON_TEMPORARY_EVENTS, player2, true);
-        Function.Call(Hash.SET_PED_FLEE_ATTRIBUTES, player2, 0, 0);
-        Function.Call(Hash.SET_PED_COMBAT_ATTRIBUTES, player2, 46, true);
-
-        foreach (WeaponHash hash in Enum.GetValues(typeof(WeaponHash)))
-        {
-            try
+            if (bool.Parse(PlayerSettings.GetValue(player, EnabledKey, false.ToString())))
             {
-                Weapon weapon = player2.Weapons.Give(hash, int.MaxValue, true, true);
-                weapon.InfiniteAmmo = true;
-                weapon.InfiniteAmmoClip = true;
-            }
-            catch (Exception)
-            {
+                string guid = PlayerSettings.GetValue(player, ControllerKey, "");
+
+                foreach (InputManager input in InputManager.GetAvailableInputManagers())
+                {
+                    if (input.DeviceGuid.Equals(guid))
+                    {
+                        InputManager manager = input;
+                        if (input is DirectInputManager)
+                        {
+                            manager = DirectInputManager.LoadConfig(((DirectInputManager)input).device, GetIniFile());
+                        }
+
+                        PedHash characterHash = PlayerSettings.GetEnumValue<PedHash>(player, CharacterHashKey, PedHash.Trevor.ToString());
+                        BlipSprite blipSprite = PlayerSettings.GetEnumValue<BlipSprite>(player, BlipSpriteKey, BlipSprite.Standard.ToString());
+                        BlipColor blipColor = PlayerSettings.GetEnumValue<BlipColor>(player, BlipColorKey, BlipColor.Green.ToString());
+
+                        PlayerPed playerPed = new PlayerPed(player, characterHash, blipSprite, blipColor, player1, manager);
+                        playerPeds.Add(playerPed);
+                        break;
+                    }
+                }
             }
         }
-
-        SelectWeapon(player2, WeaponHash.SMG);
-
-        player2.Task.ClearAllImmediately();
-
-        player2.AlwaysKeepTask = false;
-
-        player2.NeverLeavesGroup = true;
-        player2.RelationshipGroup = player1.RelationshipGroup;
-        AddBlipToP2();
-
-        if (player1.IsInVehicle())
-        {
-            Vehicle v = player1.CurrentVehicle;
-            if (v.GetPedOnSeat(VehicleSeat.Driver) == player1)
-            {
-                player2.Task.WarpIntoVehicle(v, VehicleSeat.Passenger);
-            }
-            else
-            {
-                player2.Task.WarpIntoVehicle(v, VehicleSeat.Driver);
-            }
-        }
-
-        SetupCamera();
-
-        foreach (Player2Action action in Enum.GetValues(typeof(Player2Action)))
-        {
-            lastActions[action] = Game.GameTime;
-        }
-
-        Function.Call(Hash.LOCK_MINIMAP_ANGLE, 0);
     }
 
     /// <summary>
@@ -481,56 +464,8 @@ public class TwoPlayerMod : Script
     /// </summary>
     private void SetupCamera()
     {
-        camera = World.CreateCamera(player2.GetOffsetInWorldCoords(new Vector3(0, 10, 10)), Vector3.Zero, GameplayCamera.FieldOfView);
-    }
-
-    /// <summary>
-    /// Iterates over all connected controllers and loads the InputManager if there is a valid configuration
-    /// </summary>
-    private void SetupController()
-    {
-        if (XInputManager.GetDevices().Count > 0)
-        {
-            foreach (Controller ctrl in XInputManager.GetDevices())
-            {
-                input = new XInputManager(ctrl);
-            }
-        }
-        else
-        {
-            foreach (Joystick stick in DirectInputManager.GetDevices())
-            {
-                if (input != null)
-                {
-                    break;
-                }
-                try
-                {
-                    if (DirectInputManager.IsConfigured(stick, GetIniFile()))
-                    {
-                        if (DirectInputManager.IsDefault(stick, GetIniFile(), Name))
-                        {
-                            input = DirectInputManager.LoadConfig(stick, GetIniFile());
-                        }
-                    }
-                    else
-                    {
-                        input = DirectInputManager.LoadConfig(stick, GetIniFile());
-                    }
-                }
-                catch (Exception)
-                {
-                    throw;
-                }
-            }
-
-            if (input == null)
-            {
-                throw new Exception("No valid controller configuration found, please configure one from the menu.");
-            }
-
-        }
-        UI.Notify("Using controller: " + input.DeviceName);
+        Function.Call(Hash.LOCK_MINIMAP_ANGLE, 0);
+        camera = World.CreateCamera(player1.GetOffsetInWorldCoords(new Vector3(0, 10, 10)), Vector3.Zero, GameplayCamera.FieldOfView);
     }
 
     /// <summary>
@@ -541,7 +476,6 @@ public class TwoPlayerMod : Script
         Clean();
         base.Dispose(A_0);
     }
-
 
     /// <summary>
     /// Toggles the menu
@@ -563,61 +497,43 @@ public class TwoPlayerMod : Script
         Function.Call(Hash.UNLOCK_MINIMAP_ANGLE);
 
         CleanCamera();
-        if (input != null)
-        {
-            input.Cleanup();
-            input = null;
-        }
-        CleanUpPlayer2();
+        CleanUpPlayerPeds();
+    }
+
+    /// <summary>
+    /// Cleans up all PlayerPeds
+    /// </summary>
+    private void CleanUpPlayerPeds()
+    {
+        playerPeds.ForEach((playerPed => { playerPed.Clean(); }));
+        playerPeds.Clear();
         if (player1 != null)
         {
-            player1.IsInvincible = false;
-        }
-    }
-
-
-    /// <summary>
-    /// Cleans up player 2
-    /// </summary>
-    private void CleanUpPlayer2()
-    {
-        if (player2 != null)
-        {
-            player2.Delete();
-            player2 = null;
+            player1.Task.ClearAllImmediately();
         }
     }
 
     /// <summary>
-    /// This method will return the center of two given vectors
+    /// This method will return the center of given vectors
     /// </summary>
-    /// <param name="start">Vector3 A</param>
-    /// <param name="end">Vector3 B</param>
+    /// <param name="vectors">Vector3 A</param>
     /// <returns>The center Vector3 of the two given Vector3s</returns>
-    public Vector3 CenterOfVectors(Vector3 start, Vector3 end)
+    public Vector3 CenterOfVectors(params Vector3[] vectors)
     {
-        return (start + end) * 0.5f;
+        Vector3 center = Vector3.Zero;
+        foreach (Vector3 vector in vectors)
+        {
+            center += vector;
+        }
+
+        return center / vectors.Length;
     }
 
-    /// <summary>
-    /// Makes player2 leave his vehicle normally when the vehicle is stationary/traveling slowly or jump out when not
-    /// </summary>
-    private void P2LeaveVehicle(Vehicle v)
-    {
-        if (v.Speed > 7f)
-        {
-            Function.Call(Hash.TASK_LEAVE_VEHICLE, player2, v, 4160); //4160 = ped is throwing himself out, even when the vehicle is still (that's what the speed check is for)
-        }
-        else
-        {
-            player2.Task.LeaveVehicle();
-        }
-    }
+    private bool resetWalking = false;
 
     private void TwoPlayerMod_Tick(object sender, EventArgs e)
     {
         menuPool.ProcessMenus();
-        controllersMenuItem.Description = (controllerConnected ? controllersMenuDescConfig : controllersMenuDescNoControllers);
 
         if (Enabled())
         {
@@ -627,17 +543,23 @@ public class TwoPlayerMod : Script
 
                 while (!Player1Available() || Function.Call<bool>(Hash.IS_SCREEN_FADING_IN))
                 {
-                    Wait(500);
+                    Wait(1000);
                 }
 
-                player2.Position = World.GetNextPositionOnStreet(player1.GetOffsetInWorldCoords(new Vector3(0, 5, 0)));
+                playerPeds.ForEach(playerPed =>
+                {
+                    playerPed.Respawn();
+                    Wait(500);
+                });
 
                 SetupCamera();
             }
 
+            playerPeds.ForEach((playerPed => { playerPed.Tick(); }));
+
             UpdateCamera();
 
-            if (player1.IsOnFoot && customCamera)
+            if (customCamera && player1.IsOnFoot)
             {
                 if (Game.IsControlPressed(0, GTA.Control.Jump))
                 {
@@ -679,121 +601,24 @@ public class TwoPlayerMod : Script
                     Vector3 dest = Vector3.Zero;
                     dest = player1.Position - new Vector3(offset.X, offset.Y, 0);
                     player1.Task.RunTo(dest, true, -1);
+                    resetWalking = true;
                 }
-                else
+                else if (resetWalking)
                 {
-                    player1.Task.GoTo(player1.Position, true, 0);
+                    player1.Task.ClearAll();
+                    resetWalking = false;
                 }
             }
 
-            if (player2.IsInVehicle())
+            if (Game.IsControlJustReleased(0, GTA.Control.NextCamera))
             {
-                UpdateCombat(player2, player1, () => { return input.isPressed(DeviceButton.LeftShoulder); }, () => { return input.isPressed(DeviceButton.RightShoulder); });
-
-                Vehicle v = player2.CurrentVehicle;
-
-                if (v.GetPedOnSeat(VehicleSeat.Driver) == player2)
-                {
-                    VehicleAction action = GetVehicleAction(v);
-                    if (action != LastVehicleAction)
-                    {
-                        LastVehicleAction = action;
-
-                        PerformVehicleAction(player2, v, action);
-                    }
-                }
-
-                if (input.isPressed(DeviceButton.X))
-                {
-                    if (CanDoAction(Player2Action.SelectWeapon, 500))
-                    {
-                        if (UpdateWeaponIndex())
-                        {
-                            SelectWeapon(player2, weapons[WeaponIndex]);
-                        }
-                    }
-                    NotifyWeapon();
-                }
-            }
-            else
-            {
-                UpdateFoot();
-            }
-
-            // for player2 entering / leaving a vehicle
-            if (input.isPressed(DeviceButton.Y))
-            {
-                // handle parachuting           
-                if (player2.IsInVehicle())
-                {
-                    P2LeaveVehicle(player2.CurrentVehicle);
-                }
-                else
-                {
-                    Vehicle v = World.GetClosestVehicle(player2.Position, 15);
-                    if (v != null && v == player1.CurrentVehicle)
-                    {
-                        if (v.GetPedOnSeat(VehicleSeat.Passenger) == player1)
-                        {
-                            player2.Task.EnterVehicle(v, VehicleSeat.Driver);
-                        }
-                        else
-                        {
-                            player2.Task.EnterVehicle(v, VehicleSeat.Passenger);
-                        }
-                    }
-                    else if (v != null)
-                    {
-                        Ped driver = v.GetPedOnSeat(VehicleSeat.Driver);
-                        if (driver != null && driver != player1)
-                        {
-                            driver.Task.LeaveVehicle();
-                            while (driver.IsInVehicle(v))
-                            {
-                                Wait(150);
-                            }
-                            driver.Task.RunTo(player2.GetOffsetInWorldCoords(new Vector3(50, 50, 50)), true);
-                        }
-                        player2.Task.EnterVehicle(v, VehicleSeat.Driver);
-                    }
-                }
+                customCamera = !customCamera;
             }
 
             // for letting player get in a vehicle
-            if (player1.IsOnFoot && (Game.IsKeyPressed(Keys.G) || Game.IsControlJustReleased(0, GTA.Control.VehicleExit)))
+            if (player1.IsOnFoot && Game.IsControlJustReleased(0, GTA.Control.VehicleExit))
             {
-                Vehicle v = player2.CurrentVehicle;
-
-                if (v != null)
-                {
-                    player1.Task.EnterVehicle(v, VehicleSeat.Passenger);
-                }
-                else if (v != null)
-                {
-                    player1.Task.EnterVehicle(v, VehicleSeat.Driver);
-                }
-                else
-                {
-                    v = World.GetClosestVehicle(player1.Position, 15);
-                    if (v != null)
-                    {
-                        Ped driver = v.GetPedOnSeat(VehicleSeat.Driver);
-                        if (driver == null)
-                        {
-                            player1.Task.EnterVehicle(v, VehicleSeat.Driver);
-                        }
-                        else if (driver != player2)
-                        {
-                            driver.Task.LeaveVehicle();
-                            while (driver.IsInVehicle(v))
-                            {
-                                Wait(150);
-                            }
-                            driver.Task.RunTo(player2.GetOffsetInWorldCoords(new Vector3(50, 50, 50)), true);
-                        }
-                        player1.Task.EnterVehicle(v, VehicleSeat.Passenger);
-                    }
-                }
+                HandleEnterVehicle(player1);
             }
             //Switches camera direction variable used later to change camera direction
             if (input.isPressed(DeviceButton.DPadDown))//South
@@ -813,26 +638,6 @@ public class TwoPlayerMod : Script
                 camDirection = 3;
             }
         }
-    }
-
-    /// <summary>
-    /// Helper method to check if a WeaponHash is a throwable like Grenade or Molotov
-    /// </summary>
-    /// <param name="hash">WeaponHash to check</param>
-    /// <returns>true if the given WeaponHash  is throwable, false otherwise</returns>
-    private bool IsThrowable(WeaponHash hash)
-    {
-        return throwables.Contains(hash);
-    }
-
-    /// <summary>
-    /// Helper method to check if a WeaponHash is a melee weapon
-    /// </summary>
-    /// <param name="hash">WeaponHash to check</param>
-    /// <returns>true if the given WeaponHash  is melee, false otherwise</returns>
-    private bool IsMelee(WeaponHash hash)
-    {
-        return meleeWeapons.Contains(hash);
     }
 
     /// <summary>
@@ -899,30 +704,21 @@ public class TwoPlayerMod : Script
     /// </summary>
     private void UpdateCamera()
     {
-        if (player1.IsInVehicle() && player2.IsInVehicle() && (player1.CurrentVehicle == player2.CurrentVehicle))
+        // if all in same vehicle
+        if (playerPeds.TrueForAll(p => { return p.Ped.CurrentVehicle != null && p.Ped.CurrentVehicle == player1.CurrentVehicle; }))
         {
             World.RenderingCamera = null;
         }
         else if (customCamera)
         {
+            PlayerPed furthestPlayer = playerPeds.OrderByDescending(playerPed => { return player1.Position.DistanceTo(playerPed.Ped.Position); }).FirstOrDefault();
+
+            Vector3 center = CenterOfVectors(player1.Position, furthestPlayer.Ped.Position);
+
             World.RenderingCamera = camera;
-            Vector3 p1Pos = player1.Position;
-            Vector3 p2Pos = player2.Position;
-
-            Vector3 center = CenterOfVectors(p1Pos, p2Pos);
-
             camera.PointAt(center);
 
-            float dist = p1Pos.DistanceTo(p2Pos);
-
-            if (dist > 30)
-            {
-                UI.ShowSubtitle("Press backspace to teleport player 2 back to player 1.");
-                if (Game.IsKeyPressed(Keys.Back))
-                {
-                    player2.Position = player1.GetOffsetInWorldCoords(new Vector3(0, 5, 0));
-                }
-            }
+            float dist = furthestPlayer.Ped.Position.DistanceTo(player1.Position);
 
             //Changes position of camera to switch direction
             switch(camDirection)
@@ -1288,4 +1084,5 @@ public class TwoPlayerMod : Script
         }
         return offset;
     }
+
 }

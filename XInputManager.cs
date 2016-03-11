@@ -31,7 +31,15 @@ namespace Benjamin94
             {
                 get
                 {
-                    return "XInput controller user: " + device.UserIndex;
+                    return "XInput controller: " + device.UserIndex;
+                }
+            }
+
+            public override string DeviceGuid
+            {
+                get
+                {
+                    return DeviceName;
                 }
             }
 

@@ -548,10 +548,11 @@ class TwoPlayerMod : Script
                     player1.Task.ClearAll();
                     resetWalking = false;
                 }
-
-
-                //Change camera when Player 1 right stick + RB (unassigned controller) is moved or appropriate numkey is pressed.
-                if (Game.IsControlPressed(0, GTA.Control.Cover))
+            }
+            if(customCamera)
+            {
+                //Change camera when Player 1 right stick + RB (unassigned controller) is moved or Q (cover on foot) / X (duck in vehicle) (defaults) + numpad.
+                if (Game.IsControlPressed(0, GTA.Control.Cover) || Game.IsControlPressed(0, GTA.Control.VehicleDuck))
                 {
                     if (Game.IsControlPressed(0, GTA.Control.LookDownOnly) || Game.IsKeyPressed(Keys.NumPad2))
                     {

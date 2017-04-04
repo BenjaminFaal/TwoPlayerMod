@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("TwoPlayerMod")]
-[assembly: AssemblyDescription("This mod ads another player to the game so you can play together.")]
+[assembly: AssemblyDescription("This mod spawns up to 3 extra players to the game so you can play together.")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Benjamin94")]
 [assembly: AssemblyProduct("TwoPlayerMod")]
@@ -32,5 +32,5 @@ using System.Runtime.InteropServices;
 // You can specify all the values or you can default the Build and Revision Numbers 
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("2.0")]
-[assembly: AssemblyFileVersion("2.0")]
+[assembly: AssemblyVersion("2.2")]
+[assembly: AssemblyFileVersion("2.2")]

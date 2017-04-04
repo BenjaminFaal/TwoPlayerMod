@@ -43,6 +43,8 @@ class TwoPlayerMod : Script
     // camera
     public static bool customCamera = false;
     private Camera camera;
+    public enum CameraDirection { South, West, North, East }
+    public static CameraDirection camDirection = CameraDirection.South;
 
     // players 
     private readonly UserIndex[] userIndices = new UserIndex[] { UserIndex.Two, UserIndex.Three, UserIndex.Four };
@@ -536,7 +538,7 @@ class TwoPlayerMod : Script
                         offset *= 10;
                     }
                     Vector3 dest = Vector3.Zero;
-                    dest = player1.Position - new Vector3(offset.X, offset.Y, 0);
+                    dest = player1.Position - AlterInput(new Vector3(offset.X, offset.Y, 0));
                     player1.Task.RunTo(dest, true, -1);
                     resetWalking = true;
                 }
@@ -544,6 +546,29 @@ class TwoPlayerMod : Script
                 {
                     player1.Task.ClearAll();
                     resetWalking = false;
+                }
+            }
+            if(customCamera)
+            {
+                //Change camera when Player 1 right stick + RB (unassigned controller) is moved or Q (cover on foot) / X (duck in vehicle) (defaults) + numpad.
+                if (Game.IsControlPressed(0, GTA.Control.Cover) || Game.IsControlPressed(0, GTA.Control.VehicleDuck))
+                {
+                    if (Game.IsControlPressed(0, GTA.Control.LookDownOnly) || Game.IsKeyPressed(Keys.NumPad2))
+                    {
+                        ChangeCamera(CameraDirection.South);
+                    }
+                    if (Game.IsControlPressed(0, GTA.Control.LookLeftOnly) || Game.IsKeyPressed(Keys.NumPad4))
+                    {
+                        ChangeCamera(CameraDirection.West);
+                    }
+                    if (Game.IsControlPressed(0, GTA.Control.LookUpOnly) || Game.IsKeyPressed(Keys.NumPad8))
+                    {
+                        ChangeCamera(CameraDirection.North);
+                    }
+                    if (Game.IsControlPressed(0, GTA.Control.LookRightOnly) || Game.IsKeyPressed(Keys.NumPad6))
+                    {
+                        ChangeCamera(CameraDirection.East);
+                    }
                 }
             }
 
@@ -599,7 +624,31 @@ class TwoPlayerMod : Script
 
             float dist = furthestPlayer.Ped.Position.DistanceTo(player1.Position);
 
-            center.Y += 5f + (dist / 1.6f);
+            //Switch location (direction = location + PointAt) of camera depending on camDirection
+            switch (camDirection)
+            {
+                case CameraDirection.South:
+                    center.Y += 5f + (dist / 1.6f);
+                    Function.Call(Hash.LOCK_MINIMAP_ANGLE, 0);
+                    break;
+                case CameraDirection.West:
+                    center.X += 5f + (dist / 1.6f);
+                    Function.Call(Hash.LOCK_MINIMAP_ANGLE, 90);
+                    break;
+                case CameraDirection.North:
+                    center.Y -= 5f + (dist / 1.6f);
+                    Function.Call(Hash.LOCK_MINIMAP_ANGLE, 180);
+                    break;
+                case CameraDirection.East:
+                    center.X -= 5f + (dist / 1.6f);
+                    Function.Call(Hash.LOCK_MINIMAP_ANGLE, 270);
+                    break;
+                default:
+                    center.Y += 5f + (dist / 1.6f);
+                    Function.Call(Hash.LOCK_MINIMAP_ANGLE, 0);
+                    break;
+            }
+
             center.Z += 2f + (dist / 1.4f);
 
             camera.Position = center;
@@ -609,4 +658,75 @@ class TwoPlayerMod : Script
             World.RenderingCamera = null;
         }
     }
+
+    /// <summary>
+    /// Changes camera by 90 degrees clockwise
+    /// </summary>
+    public static void ChangeCamera(CameraDirection newDirection)
+    {
+        camDirection = newDirection;
+    }
+
+    /// <summary>
+    /// Switches player input depending on camera orientation (Vector2)
+    /// </summary>
+    /// <param name="offset">Offset prior to remapping</param>
+    public static Vector2 AlterInput(Vector2 offset)
+    {
+        float temporaryOffset;
+        switch (camDirection)
+        {
+            case CameraDirection.South:                             //No need to change offset
+                break;
+            case CameraDirection.West:                             //Switch X and Y, make X negative
+                temporaryOffset = offset.X;
+                offset.X = offset.Y;
+                offset.Y = -temporaryOffset;
+                break;
+            case CameraDirection.North:                             //Make X and Y negative
+                offset.X = -offset.X;
+                offset.Y = -offset.Y;
+                break;
+            case CameraDirection.East:                             //Switch X and Y, make Y negative
+                temporaryOffset = offset.X;
+                offset.X = -offset.Y;
+                offset.Y = temporaryOffset;
+                break;
+            default:                                                //Just in case
+                break;
+        }
+        return offset;
+    }
+
+    /// <summary>
+    /// Switches player input depending on camera orientation (Vector3)
+    /// </summary>
+    /// <param name="offset">Offset prior to remapping</param>
+    public static Vector3 AlterInput(Vector3 offset)
+    {
+        float temporaryOffset;
+        switch (camDirection)
+        {
+            case CameraDirection.South:                             //No need to change offset
+                break;
+            case CameraDirection.West:                             //Switch X and Y, make X negative
+                temporaryOffset = offset.X;
+                offset.X = offset.Y;
+                offset.Y = -temporaryOffset;
+                break;
+            case CameraDirection.North:                             //Make X and Y negative
+                offset.X = -offset.X;
+                offset.Y = -offset.Y;
+                break;
+            case CameraDirection.East:                             //Switch X and Y, make Y negative
+                temporaryOffset = offset.X;
+                offset.X = -offset.Y;
+                offset.Y = temporaryOffset;
+                break;
+            default:                                                //Just in case
+                break;
+        }
+        return offset;
+    }
+
 }

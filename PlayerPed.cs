@@ -457,12 +457,13 @@ namespace Benjamin94
                 Vector3 dest = Vector3.Zero;
                 if (TwoPlayerMod.customCamera)
                 {
-                    dest = Ped.Position - new Vector3(leftThumb.X, leftThumb.Y, 0);
+                    dest = Ped.Position - TwoPlayerMod.AlterInput(new Vector3(leftThumb.X, leftThumb.Y, 0));
                 }
                 else
                 {
-                    dest = Ped.GetOffsetInWorldCoords(new Vector3(leftThumb.X, leftThumb.Y, 0));
+                    dest = Ped.GetOffsetInWorldCoords(TwoPlayerMod.AlterInput(new Vector3(leftThumb.X, leftThumb.Y, 0)));
                 }
+
 
                 Ped.Task.RunTo(dest, true, -1);
                 resetWalking = true;
@@ -649,5 +650,7 @@ namespace Benjamin94
         {
             lastActions[action] = Game.GameTime;
         }
+
+
     }
 }

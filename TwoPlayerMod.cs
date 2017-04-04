@@ -10,7 +10,6 @@ using Benjamin94.Input;
 using Benjamin94;
 using SharpDX.XInput;
 using System.Linq;
-using System.Drawing;
 
 /// <summary>
 /// The main Script, this will handle all logic

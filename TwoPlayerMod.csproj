@@ -45,6 +45,7 @@
     <Reference Include="ScriptHookVDotNet, Version=0.0.0.0, Culture=neutral, processorArchitecture=AMD64">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>Dependencies\ScriptHookVDotNet.dll</HintPath>
+      <Private>False</Private>
     </Reference>
     <Reference Include="SharpDX, Version=3.1.1.0, Culture=neutral, PublicKeyToken=b4dcf0f35e5521f1, processorArchitecture=MSIL">
       <HintPath>packages\SharpDX.3.1.1\lib\net45\SharpDX.dll</HintPath>

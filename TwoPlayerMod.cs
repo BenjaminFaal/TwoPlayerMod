@@ -404,7 +404,7 @@ class TwoPlayerMod : Script
     /// </summary>
     private void SetupCamera()
     {
-        Function.Call(Hash.LOCK_MINIMAP_ANGLE, 0);
+        //Function.Call(Hash.LOCK_MINIMAP_ANGLE, 0);
         camera = World.CreateCamera(player1.GetOffsetInWorldCoords(new Vector3(0, 10, 10)), Vector3.Zero, GameplayCamera.FieldOfView);
     }
 
@@ -550,6 +550,8 @@ class TwoPlayerMod : Script
             if (Game.IsControlJustReleased(0, GTA.Control.NextCamera))
             {
                 customCamera = !customCamera;
+                if (!customCamera) UI.Notify("In Normal MODE");
+                if (customCamera) UI.Notify("In SA MODE");
             }
 
             // for letting player get in a vehicle
@@ -587,14 +589,18 @@ class TwoPlayerMod : Script
         if (playerPeds.TrueForAll(p => { return p.Ped.CurrentVehicle != null && p.Ped.CurrentVehicle == player1.CurrentVehicle; }))
         {
             World.RenderingCamera = null;
+            Function.Call(Hash.UNLOCK_MINIMAP_ANGLE, 0);
+            //if (!customCamera && Game.IsControlJustReleased(0, GTA.Control.NextCamera)) UI.Notify("Normal Mode");
         }
         else if (customCamera)
         {
+            Function.Call(Hash.LOCK_MINIMAP_ANGLE, 0);
             PlayerPed furthestPlayer = playerPeds.OrderByDescending(playerPed => { return player1.Position.DistanceTo(playerPed.Ped.Position); }).FirstOrDefault();
 
             Vector3 center = CenterOfVectors(player1.Position, furthestPlayer.Ped.Position);
-
             World.RenderingCamera = camera;
+            //if (Game.IsControlJustReleased(0, GTA.Control.NextCamera) && World.RenderingCamera == camera) UI.Notify("In SA MODE");
+
             camera.PointAt(center);
 
             float dist = furthestPlayer.Ped.Position.DistanceTo(player1.Position);
@@ -607,6 +613,8 @@ class TwoPlayerMod : Script
         else
         {
             World.RenderingCamera = null;
+            //if (Game.IsControlJustReleased(0, GTA.Control.NextCamera) && World.RenderingCamera == null) UI.Notify("Normal Mode");
+            Function.Call(Hash.UNLOCK_MINIMAP_ANGLE, 0);
         }
     }
 }
